@@ -12,9 +12,8 @@ cmake-install/
 *.obj
 *.out
 
-# Spawned test executables created at runtime by spawner.c
-# (copies of the build output named <whatever>.exe)
-# Covered by *.exe above, kept here as a reminder.
+# Dummy game folders created at runtime by the spawner
+spawned_games/
 
 # Debug / symbol files
 *.pdb

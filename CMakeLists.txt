@@ -2,6 +2,24 @@ cmake_minimum_required(VERSION 4.3)
 project(Discord_quest C)
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 add_executable(Discord_quest
-        spawner.c)
+        src/main.c
+        src/commands.c
+        src/spawn.c
+        src/fs.c)
+
+target_compile_definitions(Discord_quest PRIVATE WIN32_LEAN_AND_MEAN)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(Discord_quest PRIVATE -Wall -Wextra)
+elseif(MSVC)
+    target_compile_options(Discord_quest PRIVATE /W4)
+endif()
+
+# Link the runtime statically so the exe runs on any Windows machine without
+# MinGW DLLs next to it (needed for the release download).
+if(MINGW)
+    target_link_options(Discord_quest PRIVATE -static)
+endif()
