@@ -238,6 +238,21 @@ static void cmd_delete(void)
     }
 }
 
+/* The "c" command: clear the console screen (no subprocess). */
+static void cmd_clear(void)
+{
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (!GetConsoleScreenBufferInfo(h, &csbi)) return;
+
+    DWORD cells = (DWORD)csbi.dwSize.X * csbi.dwSize.Y;
+    DWORD written;
+    COORD home = { 0, 0 };
+    FillConsoleOutputCharacterA(h, ' ', cells, home, &written);
+    FillConsoleOutputAttribute(h, csbi.wAttributes, cells, home, &written);
+    SetConsoleCursorPosition(h, home);
+}
+
 /*
  * Reserved commands, in one table so the help listing and the dispatcher stay
  * in sync. Anything the user types that is not one of these is treated as a
@@ -253,6 +268,7 @@ struct command {
 static const struct command COMMANDS[] = {
     { "h", "help",   "Show this help" },
     { "d", "delete", "Delete the \"" SPAWN_DIR "\" folder (skips exe's still running)" },
+    { "c", "clear",  "Clear the screen" },
     { "q", "quit",   "Exit (spawned game windows keep running)" },
 };
 static const int NUM_COMMANDS = (int)(sizeof(COMMANDS) / sizeof(COMMANDS[0]));
@@ -303,7 +319,9 @@ int main(int argc, char **argv)
             cmd_help();
         } else if (matches(in, &COMMANDS[1])) { /* delete */
             cmd_delete();
-        } else if (matches(in, &COMMANDS[2])) { /* quit */
+        } else if (matches(in, &COMMANDS[2])) { /* clear */
+            cmd_clear();
+        } else if (matches(in, &COMMANDS[3])) { /* quit */
             break;
         } else {
             spawn_game(in);
