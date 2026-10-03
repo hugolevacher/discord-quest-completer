@@ -12,16 +12,19 @@
  * places the exe inside, and runs it from there.
  *
  * How it works:
- *   - Run with no arguments  -> interactive mode: asks for a path suffix such
- *     as "_retail_/wow.exe", copies this exe there (creating folders),
- *     and launches that copy in a new console window.
+ *   - Run with no arguments  -> interactive command loop. The window stays open
+ *     so you can spawn several games in a row. At the prompt:
+ *       * type a path suffix (e.g. "_retail_/wow.exe") to spawn a game;
+ *       * type "h" for help, "d" to delete all spawned games, "q" to quit.
+ *     Spawning copies this exe to the target path (creating folders) and
+ *     launches the copy in a new console window.
  *   - The launched copy runs with the argument "--child", which just keeps the
  *     process alive (printing a heartbeat) until you close its window / Ctrl+C.
  *
- * Everything is created under a single folder (SPAWN_DIR, below), so you can
- * remove every spawned exe at once by deleting that one folder. The child's
- * full module path still ends with the suffix you entered, which is what the
- * detector matches against.
+ * Everything is created under a single folder (SPAWN_DIR, below), so the "d"
+ * command can remove every spawned exe at once by deleting that one folder.
+ * The child's full module path still ends with the suffix you entered, which is
+ * what the detector matches against.
  *
  * Build (MinGW):   gcc -O2 -o spawner.exe spawner.c
  * Build (MSVC):    cl spawner.c
@@ -107,36 +110,32 @@ static void ensure_parent_dirs(const char *path)
     }
 }
 
+/* Trim leading and trailing whitespace in place; return the trimmed start. */
+static char *trim(char *s)
+{
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
+    size_t n = strlen(s);
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t' ||
+                     s[n - 1] == '\n' || s[n - 1] == '\r')) {
+        s[--n] = '\0';
+    }
+    return s;
+}
+
 /*
- * Parent mode: ask for a path suffix (e.g. "_retail_/wow.exe"),
- * create the folders, clone self into it, and launch it from there.
+ * Spawn one game: take a path suffix (e.g. "_retail_/wow.exe"), place a copy
+ * of this exe under SPAWN_DIR (creating any sub-folders), and launch it in a
+ * new console window. Errors are reported but never abort the command loop.
  */
-static int run_interactive(void)
+static void spawn_game(const char *input)
 {
     char name[512];
-
-    printf("Enter the executable path the detector expects.\n");
-    printf("Examples:  _retail_/wow.exe   or just   RobloxPlayerBeta\n");
-    printf("(you can use / or \\, and the .exe is optional)\n> ");
-    if (!fgets(name, sizeof(name), stdin)) {
-        fprintf(stderr, "No input.\n");
-        return 1;
-    }
-
-    /* Trim trailing newline / whitespace. */
-    size_t len = strlen(name);
-    while (len > 0 && (name[len - 1] == '\n' || name[len - 1] == '\r' ||
-                       name[len - 1] == ' ' || name[len - 1] == '\t')) {
-        name[--len] = '\0';
-    }
-    if (len == 0) {
-        fprintf(stderr, "Name cannot be empty.\n");
-        return 1;
-    }
+    strncpy(name, input, sizeof(name) - 1);
+    name[sizeof(name) - 1] = '\0';
 
     /*
      * Normalize into a Windows relative path with a .exe extension, placed
-     * under SPAWN_DIR. Any sub-folders in the user's input are preserved, so
+     * under SPAWN_DIR. Any sub-folders in the input are preserved, so
      * "a/b/game.exe" becomes "SPAWN_DIR\a\b\game.exe" and all of a, b are made.
      */
     normalize_slashes(name);
@@ -144,20 +143,21 @@ static int run_interactive(void)
     snprintf(target, sizeof(target), "%s\\%s", SPAWN_DIR, name);
     ensure_exe_ext(target, sizeof(target));
 
-    /* Path to this running executable. */
     char self[MAX_PATH];
     GetModuleFileNameA(NULL, self, MAX_PATH);
 
-    /* Create the folder(s) the suffix requires, then copy self into place. */
     ensure_parent_dirs(target);
     if (!CopyFileA(self, target, FALSE)) {
-        fprintf(stderr, "Failed to create %s (error %lu).\n",
-                target, (unsigned long)GetLastError());
-        return 1;
+        DWORD err = GetLastError();
+        if (err == ERROR_SHARING_VIOLATION) {
+            fprintf(stderr, "'%s' already exists and is running.\n", target);
+        } else {
+            fprintf(stderr, "Failed to create %s (error %lu).\n",
+                    target, (unsigned long)err);
+        }
+        return;
     }
-    printf("Created %s\n", target);
 
-    /* Launch the copy in child mode, in its own new console window. */
     char cmdline[1024];
     snprintf(cmdline, sizeof(cmdline), "\"%s\" --child", target);
 
@@ -171,17 +171,110 @@ static int run_interactive(void)
                         CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
         fprintf(stderr, "Failed to start %s (error %lu).\n",
                 target, (unsigned long)GetLastError());
-        return 1;
+        return;
     }
 
     printf("Started %s (PID %lu) in a new window.\n",
            target, (unsigned long)pi.dwProcessId);
-    printf("Close that window to stop it.\n");
-    printf("To clean up every spawned exe, delete the \"%s\" folder.\n", SPAWN_DIR);
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
-    return 0;
+}
+
+/*
+ * Recursively delete everything inside "path", then the folder itself.
+ * A file that can't be deleted (e.g. a spawned exe still running) is counted
+ * in *failed and skipped; every other file is still removed. Folders that end
+ * up empty are removed; folders still holding a locked file simply remain.
+ */
+static void delete_tree(const char *path, int *deleted, int *failed)
+{
+    char pattern[512];
+    snprintf(pattern, sizeof(pattern), "%s\\*", path);
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h != INVALID_HANDLE_VALUE) {
+        do {
+            if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) {
+                continue;
+            }
+            char child[512];
+            snprintf(child, sizeof(child), "%s\\%s", path, fd.cFileName);
+
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                delete_tree(child, deleted, failed);
+            } else {
+                SetFileAttributesA(child, FILE_ATTRIBUTE_NORMAL);
+                if (DeleteFileA(child)) {
+                    (*deleted)++;
+                } else {
+                    (*failed)++;
+                }
+            }
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+    }
+
+    /* Removes the folder only if it is now empty; failure is fine. */
+    RemoveDirectoryA(path);
+}
+
+/* The "d" command: wipe the SPAWN_DIR folder, tolerating locked files. */
+static void cmd_delete(void)
+{
+    if (GetFileAttributesA(SPAWN_DIR) == INVALID_FILE_ATTRIBUTES) {
+        printf("Nothing to delete - \"%s\" does not exist.\n", SPAWN_DIR);
+        return;
+    }
+
+    int deleted = 0, failed = 0;
+    delete_tree(SPAWN_DIR, &deleted, &failed);
+
+    printf("Deleted %d file(s).\n", deleted);
+    if (failed > 0) {
+        printf("%d file(s) are still in use and were skipped - close those "
+               "windows and run 'd' again.\n", failed);
+    }
+}
+
+/*
+ * Reserved commands, in one table so the help listing and the dispatcher stay
+ * in sync. Anything the user types that is not one of these is treated as a
+ * game path to spawn. To add a command: add a row here and a branch in
+ * dispatch().
+ */
+struct command {
+    const char *key;   /* short form, e.g. "h" */
+    const char *name;  /* long form, e.g. "help" */
+    const char *desc;  /* shown by the help command */
+};
+
+static const struct command COMMANDS[] = {
+    { "h", "help",   "Show this help" },
+    { "d", "delete", "Delete the \"" SPAWN_DIR "\" folder (skips exe's still running)" },
+    { "q", "quit",   "Exit (spawned game windows keep running)" },
+};
+static const int NUM_COMMANDS = (int)(sizeof(COMMANDS) / sizeof(COMMANDS[0]));
+
+/* The "h" command: list every command plus how to spawn. */
+static void cmd_help(void)
+{
+    printf("\nCommands:\n");
+    for (int i = 0; i < NUM_COMMANDS; i++) {
+        printf("  %-2s / %-7s %s\n",
+               COMMANDS[i].key, COMMANDS[i].name, COMMANDS[i].desc);
+    }
+    printf("\nAnything else is treated as a game path to spawn, for example:\n");
+    printf("  _retail_/wow.exe        (folder \"_retail_\", exe \"wow.exe\")\n");
+    printf("  RobloxPlayerBeta        (just a name, .exe optional)\n");
+    printf("You can use / or \\, and the .exe is optional.\n");
+}
+
+/* True if the typed word matches a command's short or long form. */
+static int matches(const char *in, const struct command *c)
+{
+    return _stricmp(in, c->key) == 0 || _stricmp(in, c->name) == 0;
 }
 
 int main(int argc, char **argv)
@@ -189,5 +282,33 @@ int main(int argc, char **argv)
     if (argc > 1 && strcmp(argv[1], "--child") == 0) {
         return run_as_child();
     }
-    return run_interactive();
+
+    printf("Game process spawner. Type 'h' for help, 'q' to quit.\n");
+
+    char line[512];
+    for (;;) {
+        printf("\n> ");
+        fflush(stdout);
+
+        if (!fgets(line, sizeof(line), stdin)) {
+            break;  /* EOF (Ctrl+Z, closed pipe) -> exit cleanly */
+        }
+
+        char *in = trim(line);
+        if (*in == '\0') {
+            continue;  /* blank line */
+        }
+
+        if (matches(in, &COMMANDS[0])) {        /* help */
+            cmd_help();
+        } else if (matches(in, &COMMANDS[1])) { /* delete */
+            cmd_delete();
+        } else if (matches(in, &COMMANDS[2])) { /* quit */
+            break;
+        } else {
+            spawn_game(in);
+        }
+    }
+
+    return 0;
 }
