@@ -1,27 +1,69 @@
 # Discord Quest Completer
 
-A tiny C utility for Windows. Some Discord quests ask you to **play a game**, and
-to verify them Discord only checks whether a **process whose executable is named
-after that game is running** — it doesn't check that the real game is installed
-or actually being played.
+A small C tool for Windows. Some Discord quests ask you to **play a game**, and
+to verify them Discord checks whether a **process with that game's executable
+path is running**. It doesn't check that the real game is installed or actually
+being played.
 
-This tool exploits that: it asks you for a name, copies itself to `<name>.exe`,
-and launches that copy as a long-running process. Discord then sees a process
-with the game's executable name running, and the "play the game" step completes.
+This tool takes advantage of that. It copies itself to the path Discord looks
+for (for example `_retail_/wow.exe`) and runs that copy as a long-running
+process, so Discord sees the game as running and the "play the game" step
+completes.
 
 ## Usage
 
-1. Run `spawner.exe`.
-2. When prompted, type the game's executable name **without** `.exe`
-   (e.g. for a quest about *League of Legends*, type `LeagueClient`).
-3. A new console window opens running `<name>.exe`. Leave it open while Discord
-   checks the quest.
-4. Close that window when you're done. The `<name>.exe` file stays on disk;
-   delete it yourself if you don't want to keep it.
+Run `spawner.exe`. It opens a prompt where you can spawn as many games as you
+like in one session.
 
-> Finding the right name: Discord looks for the same executable name the real
-> game registers. Check the quest details or the game's install folder for the
-> exact `.exe` name, then type that (minus the `.exe`).
+### Find a game and spawn it
+
+1. Type `find` followed by the game's name, e.g. `find world of warcraft`.
+   You can also search by exe name, e.g. `find wow`.
+2. The matching games are listed with the exe paths Discord looks for.
+3. Pick a path with the **Up/Down** arrow keys and press **Enter** to spawn it
+   (**Esc** cancels).
+4. A new window opens running the game's exe. Leave it open while Discord checks
+   the quest, and close it when you're done.
+
+The first search downloads Discord's official list of detectable games
+(about 12 MB) and saves it next to the exe. It is downloaded again
+automatically once it's more than a day old.
+
+> If a game shows **"none - Discord can't detect this game by its process"**,
+> Discord has no exe registered for it, so this tool can't complete its quest.
+
+### Spawn a path directly
+
+If you already know the path, type it at the prompt:
+
+```
+> _retail_/wow.exe
+> RobloxPlayerBeta
+```
+
+Use `/` or `\`, and the `.exe` is optional. Folders in the path are created
+for you, because Discord matches the **end of the full path** (the folder and
+the exe name), not just the file name.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `h` / `help` | Show the commands |
+| `f` / `find <name>` | Search Discord's game list, then pick a result to spawn |
+| `r` / `refresh` | Download Discord's game list again now |
+| `d` / `delete` | Delete every spawned game (skips any that are still running) |
+| `c` / `clear` | Clear the screen |
+| `q` / `quit` | Exit (spawned game windows keep running) |
+
+Anything that isn't a command is treated as a path to spawn.
+
+### Cleaning up
+
+Everything the tool spawns goes into a `spawned_games` folder next to
+`spawner.exe`. Close the game windows, then run `d` to delete it, or delete the
+folder yourself. If a game is still running, `d` skips it, deletes the rest and
+tells you.
 
 ## Note
 
