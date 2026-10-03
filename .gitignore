@@ -1,0 +1,27 @@
+# CLion / CMake build output
+/cmake-build-*/
+/build/
+cmake-install/
+
+# CLion IDE settings
+/.idea/
+
+# Compiled binaries / objects
+*.exe
+*.o
+*.obj
+*.out
+
+# Spawned test executables created at runtime by spawner.c
+# (copies of the build output named <whatever>.exe)
+# Covered by *.exe above, kept here as a reminder.
+
+# Debug / symbol files
+*.pdb
+*.ilk
+*.dSYM/
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store
