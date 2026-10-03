@@ -16,6 +16,7 @@
  *   commands.c  built-in commands (help, find, refresh, delete, clear, quit)
  *   spawn.c     building the target path and launching dummy games
  *   games.c     Discord's detectable-games list: download, cache, search
+ *   menu.c      arrow-key selection menu
  *   http.c      HTTPS download (WinHTTP)
  *   fs.c        filesystem helpers (mkdir -p, recursive delete, file reads)
  *   config.h    constants
@@ -32,9 +33,18 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Trim leading and trailing whitespace in place; return the trimmed start. */
+/*
+ * Trim leading and trailing whitespace in place; return the trimmed start.
+ * A leading UTF-8 byte-order mark is dropped too: PowerShell and some editors
+ * put one at the start of piped input, which would otherwise turn the first
+ * command into a game name.
+ */
 static char *trim(char *s)
 {
+    if ((unsigned char)s[0] == 0xEF && (unsigned char)s[1] == 0xBB &&
+        (unsigned char)s[2] == 0xBF) {
+        s += 3;
+    }
     while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') {
         s++;
     }

@@ -33,6 +33,10 @@ struct game {
 static struct game *g_games;
 static size_t g_count;
 
+/* Appended to an exe path in struct game.exes when it is the game's launcher. */
+static const char LAUNCHER_TAG[] = "  [launcher]";
+#define LAUNCHER_TAG_LEN (sizeof(LAUNCHER_TAG) - 1)
+
 /* ---- small growable string ------------------------------------------- */
 
 struct strbuf {
@@ -137,7 +141,7 @@ static bool load_game(const cJSON *json, struct game *g)
         }
         ok = ok && sb_add(&exes, "\n", name->valuestring);
         if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(it, "is_launcher"))) {
-            ok = ok && sb_append(&exes, "  [launcher]", 12);
+            ok = ok && sb_append(&exes, LAUNCHER_TAG, LAUNCHER_TAG_LEN);
         }
     }
 
@@ -320,7 +324,11 @@ static int rank_text(const char *s, size_t len, const char *q, size_t qn)
     return contains_ci(s, len, q, qn) ? 2 : -1;
 }
 
-/* Best rank of q against the game's name and aliases (lower is better). */
+/*
+ * Best rank of q for a game (lower is better): its name and aliases rank 0-2
+ * as in rank_text(); failing those, an exe path containing q ranks 3, so
+ * "find wow" still finds World of Warcraft through "_retail_/wow.exe".
+ */
 static int match_rank(const struct game *g, const char *q, size_t qn)
 {
     int best = rank_text(g->name, strlen(g->name), q, qn);
@@ -338,7 +346,27 @@ static int match_rank(const struct game *g, const char *q, size_t qn)
         }
         p = end + 1;
     }
-    return best;
+    if (best >= 0) {
+        return best;
+    }
+
+    p = g->exes;
+    while (*p) {
+        const char *end = strchr(p, '\n');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+        if (len >= LAUNCHER_TAG_LEN &&
+            memcmp(p + len - LAUNCHER_TAG_LEN, LAUNCHER_TAG, LAUNCHER_TAG_LEN) == 0) {
+            len -= LAUNCHER_TAG_LEN;  /* search the path, not the tag */
+        }
+        if (contains_ci(p, len, q, qn)) {
+            return 3;
+        }
+        if (!end) {
+            break;
+        }
+        p = end + 1;
+    }
+    return -1;
 }
 
 struct match {
@@ -362,7 +390,7 @@ static int compare_matches(const void *a, const void *b)
     return _stricmp(x->game->name, y->game->name);
 }
 
-#define LABEL_WIDTH 12
+#define LABEL_WIDTH 13  /* longest label ("Also called:") plus a space */
 
 /* Print a labelled field whose '\n'-separated values go one per line. */
 static void print_lines(const char *label, const char *lines)
@@ -401,8 +429,71 @@ static void print_game(const struct game *g)
     printf("  %-*s%s\n", LABEL_WIDTH, "Discord ID:", g->id);
 }
 
-void games_find(const char *query)
+/* Number of '\n'-separated values in s ("" has none). */
+static size_t count_lines(const char *s)
 {
+    if (!*s) {
+        return 0;
+    }
+    size_t n = 1;
+    for (; *s; s++) {
+        n += *s == '\n';
+    }
+    return n;
+}
+
+/* Gather every exe of the shown games into a malloc'd array of choices. */
+static void collect_choices(const struct match *matches, size_t shown,
+                            struct game_choice **out, size_t *n_out)
+{
+    size_t total = 0;
+    for (size_t i = 0; i < shown; i++) {
+        total += count_lines(matches[i].game->exes);
+    }
+    if (total == 0) {
+        return;
+    }
+
+    struct game_choice *list = malloc(total * sizeof(*list));
+    if (!list) {
+        return;  /* the results are already printed; just no menu */
+    }
+
+    size_t n = 0;
+    for (size_t i = 0; i < shown; i++) {
+        const struct game *g = matches[i].game;
+        const char *p = g->exes;
+        while (*p) {
+            const char *end = strchr(p, '\n');
+            size_t len = end ? (size_t)(end - p) : strlen(p);
+
+            bool launcher = len >= LAUNCHER_TAG_LEN &&
+                memcmp(p + len - LAUNCHER_TAG_LEN, LAUNCHER_TAG, LAUNCHER_TAG_LEN) == 0;
+            size_t path_len = launcher ? len - LAUNCHER_TAG_LEN : len;
+
+            if (path_len < sizeof(list[n].path)) {
+                memcpy(list[n].path, p, path_len);
+                list[n].path[path_len] = '\0';
+                list[n].game = g->name;
+                list[n].launcher = launcher;
+                n++;
+            }
+            if (!end) {
+                break;
+            }
+            p = end + 1;
+        }
+    }
+
+    *out = list;
+    *n_out = n;
+}
+
+void games_find(const char *query, struct game_choice **choices, size_t *n_choices)
+{
+    *choices = NULL;
+    *n_choices = 0;
+
     if (!ensure_loaded()) {
         return;
     }
@@ -440,6 +531,7 @@ void games_find(const char *query)
             printf("\n...and %lu more. Try a more specific name.\n",
                    (unsigned long)(n - shown));
         }
+        collect_choices(matches, shown, choices, n_choices);
     }
     free(matches);
 }

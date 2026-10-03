@@ -9,10 +9,12 @@
 #include "config.h"
 #include "fs.h"
 #include "games.h"
+#include "menu.h"
 #include "spawn.h"
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static cmd_result cmd_help(const char *args);
@@ -32,7 +34,7 @@ struct command {
 
 static const struct command COMMANDS[] = {
     { "h", "help",    NULL,     "Show this help",                                  cmd_help    },
-    { "f", "find",    "<name>", "Look up a game in Discord's list and show the path to spawn",
+    { "f", "find",    "<name>", "Look up a game in Discord's list, then pick one to spawn",
                                                                                    cmd_find    },
     { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
     { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (skips running games)",
@@ -101,13 +103,30 @@ static cmd_result cmd_help(const char *args)
     printf("  _retail_/wow.exe        (folder \"_retail_\", exe \"wow.exe\")\n");
     printf("  RobloxPlayerBeta        (just a name, .exe optional)\n");
     printf("You can use / or \\, and the .exe is optional.\n");
-    printf("Use 'find <game>' to get the exact path Discord looks for.\n");
+    printf("Easiest: 'find <game>', then pick a result with the arrow keys and Enter.\n");
     return CMD_CONTINUE;
 }
 
+/* Menu text for one search result: "path [launcher]  (Game name)". */
+static void choice_label(size_t i, char *buf, size_t cap, void *ctx)
+{
+    const struct game_choice *c = (const struct game_choice *)ctx + i;
+    snprintf(buf, cap, "%s%s  (%s)", c->path, c->launcher ? " [launcher]" : "", c->game);
+}
+
+/* Search the list, then let the user pick one of the results to spawn. */
 static cmd_result cmd_find(const char *args)
 {
-    games_find(args);
+    struct game_choice *choices = NULL;
+    size_t n = 0;
+    games_find(args, &choices, &n);
+
+    int pick = menu_pick("Pick an exe to spawn (Up/Down to move, Enter to spawn, "
+                         "Esc to cancel):", n, choice_label, choices);
+    if (pick >= 0) {
+        spawn_game(choices[pick].path);
+    }
+    free(choices);
     return CMD_CONTINUE;
 }
 
