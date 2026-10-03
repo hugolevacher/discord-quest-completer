@@ -5,6 +5,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 bool fs_exe_dir(char *out, size_t cap)
@@ -26,6 +27,56 @@ bool fs_exe_dir(char *out, size_t cap)
 bool fs_exists(const char *path)
 {
     return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+}
+
+char *fs_read_file(const char *path, size_t *size)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        return NULL;
+    }
+
+    char *buf = NULL;
+    if (fseek(f, 0, SEEK_END) == 0) {
+        long len = ftell(f);
+        if (len >= 0 && fseek(f, 0, SEEK_SET) == 0) {
+            buf = malloc((size_t)len + 1);
+            if (buf && fread(buf, 1, (size_t)len, f) == (size_t)len) {
+                buf[len] = '\0';
+                if (size) {
+                    *size = (size_t)len;
+                }
+            } else {
+                free(buf);
+                buf = NULL;
+            }
+        }
+    }
+    fclose(f);
+    return buf;
+}
+
+bool fs_file_age(const char *path, long long *seconds)
+{
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) {
+        return false;
+    }
+
+    FILETIME now_ft;
+    GetSystemTimeAsFileTime(&now_ft);
+
+    /* FILETIMEs count 100-nanosecond ticks. */
+    ULARGE_INTEGER now, then;
+    now.LowPart = now_ft.dwLowDateTime;
+    now.HighPart = now_ft.dwHighDateTime;
+    then.LowPart = data.ftLastWriteTime.dwLowDateTime;
+    then.HighPart = data.ftLastWriteTime.dwHighDateTime;
+
+    *seconds = now.QuadPart > then.QuadPart
+        ? (long long)((now.QuadPart - then.QuadPart) / 10000000ULL)
+        : 0;
+    return true;
 }
 
 /* True for a drive root like "C:", which can't (and needn't) be created. */

@@ -13,15 +13,21 @@
  *
  * Layout:
  *   main.c      prompt loop and child-mode switch
- *   commands.c  built-in commands (help, delete, clear, quit)
+ *   commands.c  built-in commands (help, find, refresh, delete, clear, quit)
  *   spawn.c     building the target path and launching dummy games
- *   fs.c        filesystem helpers (mkdir -p, recursive delete)
+ *   games.c     Discord's detectable-games list: download, cache, search
+ *   http.c      HTTPS download (WinHTTP)
+ *   fs.c        filesystem helpers (mkdir -p, recursive delete, file reads)
  *   config.h    constants
+ *
+ * Third-party: cJSON (third_party/cjson, MIT licence) parses the games list.
  */
 #include "commands.h"
 #include "config.h"
+#include "games.h"
 #include "spawn.h"
 
+#include <windows.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -67,6 +73,9 @@ int main(int argc, char **argv)
         return spawn_child_main();
     }
 
+    /* Game names in Discord's list are UTF-8 (e.g. "Pokémon"). */
+    SetConsoleOutputCP(CP_UTF8);
+
     printf("%s. Type 'h' for help, 'q' to quit.\n", APP_NAME);
 
     char line[INPUT_MAX];
@@ -91,5 +100,6 @@ int main(int argc, char **argv)
         }
     }
 
+    games_free();
     return 0;
 }

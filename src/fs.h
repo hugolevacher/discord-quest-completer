@@ -17,6 +17,16 @@ bool fs_exe_dir(char *out, size_t cap);
 bool fs_exists(const char *path);
 
 /*
+ * Read a whole file into a NUL-terminated buffer the caller must free().
+ * Stores the length (without the NUL) in *size if size is not NULL.
+ * Returns NULL if the file can't be read.
+ */
+char *fs_read_file(const char *path, size_t *size);
+
+/* Store how many seconds ago path was last modified. False if it doesn't exist. */
+bool fs_file_age(const char *path, long long *seconds);
+
+/*
  * Create every parent folder of path, like "mkdir -p" on its folder part.
  * The file name after the last '\' is ignored. Existing folders are fine.
  */

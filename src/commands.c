@@ -8,63 +8,121 @@
 
 #include "config.h"
 #include "fs.h"
+#include "games.h"
 #include "spawn.h"
 
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
 
-static cmd_result cmd_help(void);
-static cmd_result cmd_delete(void);
-static cmd_result cmd_clear(void);
-static cmd_result cmd_quit(void);
+static cmd_result cmd_help(const char *args);
+static cmd_result cmd_find(const char *args);
+static cmd_result cmd_refresh(const char *args);
+static cmd_result cmd_delete(const char *args);
+static cmd_result cmd_clear(const char *args);
+static cmd_result cmd_quit(const char *args);
 
 struct command {
-    const char *key;          /* short form, e.g. "h" */
-    const char *name;         /* long form, e.g. "help" */
-    const char *desc;         /* shown by the help command */
-    cmd_result (*run)(void);  /* handler */
+    const char *key;   /* short form, e.g. "h" */
+    const char *name;  /* long form, e.g. "help" */
+    const char *args;  /* argument placeholder shown in help, NULL if none */
+    const char *desc;  /* shown by the help command */
+    cmd_result (*run)(const char *args);
 };
 
 static const struct command COMMANDS[] = {
-    { "h", "help",   "Show this help",                                        cmd_help   },
-    { "d", "delete", "Delete the \"" SPAWN_DIR "\" folder (skips running games)", cmd_delete },
-    { "c", "clear",  "Clear the screen",                                      cmd_clear  },
-    { "q", "quit",   "Exit (spawned game windows keep running)",              cmd_quit   },
+    { "h", "help",    NULL,     "Show this help",                                  cmd_help    },
+    { "f", "find",    "<name>", "Look up a game in Discord's list and show the path to spawn",
+                                                                                   cmd_find    },
+    { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
+    { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (skips running games)",
+                                                                                   cmd_delete  },
+    { "c", "clear",   NULL,     "Clear the screen",                                cmd_clear   },
+    { "q", "quit",    NULL,     "Exit (spawned game windows keep running)",        cmd_quit    },
 };
 
 #define NUM_COMMANDS (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
 
+/* True if the len-char word equals s, ignoring case. */
+static bool word_is(const char *word, size_t len, const char *s)
+{
+    return strlen(s) == len && _strnicmp(word, s, len) == 0;
+}
+
 bool command_run(const char *input, cmd_result *result)
 {
+    /* The first word picks the command; the rest of the line is its argument. */
+    size_t word_len = strcspn(input, " \t");
+    const char *rest = input + word_len;
+    while (*rest == ' ' || *rest == '\t') {
+        rest++;
+    }
+
     for (size_t i = 0; i < NUM_COMMANDS; i++) {
         const struct command *c = &COMMANDS[i];
-        if (_stricmp(input, c->key) == 0 || _stricmp(input, c->name) == 0) {
-            *result = c->run();
+        if (!word_is(input, word_len, c->key) && !word_is(input, word_len, c->name)) {
+            continue;
+        }
+
+        /*
+         * A command that takes no argument but is followed by text isn't that
+         * command: let the line fall through to spawning, so a path such as
+         * "d folder/game.exe" still spawns.
+         */
+        if (!c->args && *rest) {
+            return false;
+        }
+        if (c->args && !*rest) {
+            printf("usage: %s %s\n", c->name, c->args);
+            *result = CMD_CONTINUE;
             return true;
         }
+
+        *result = c->run(rest);
+        return true;
     }
     return false;
 }
 
 /* List every command plus how to spawn a game. */
-static cmd_result cmd_help(void)
+static cmd_result cmd_help(const char *args)
 {
+    (void)args;
+
     printf("\nCommands:\n");
     for (size_t i = 0; i < NUM_COMMANDS; i++) {
-        printf("  %-2s / %-7s %s\n",
-               COMMANDS[i].key, COMMANDS[i].name, COMMANDS[i].desc);
+        const struct command *c = &COMMANDS[i];
+        char label[32];
+        snprintf(label, sizeof(label), "%s / %s%s%s", c->key, c->name,
+                 c->args ? " " : "", c->args ? c->args : "");
+        printf("  %-18s %s\n", label, c->desc);
     }
     printf("\nAnything else is treated as a game path to spawn, for example:\n");
     printf("  _retail_/wow.exe        (folder \"_retail_\", exe \"wow.exe\")\n");
     printf("  RobloxPlayerBeta        (just a name, .exe optional)\n");
     printf("You can use / or \\, and the .exe is optional.\n");
+    printf("Use 'find <game>' to get the exact path Discord looks for.\n");
+    return CMD_CONTINUE;
+}
+
+static cmd_result cmd_find(const char *args)
+{
+    games_find(args);
+    return CMD_CONTINUE;
+}
+
+static cmd_result cmd_refresh(const char *args)
+{
+    (void)args;
+    games_refresh();
     return CMD_CONTINUE;
 }
 
 /* Wipe the SPAWN_DIR folder, skipping (and reporting) games still running. */
-static cmd_result cmd_delete(void)
+static cmd_result cmd_delete(const char *args)
 {
+    (void)args;
+
     char root[MAX_PATH];
     if (!spawn_root(root, sizeof(root))) {
         fprintf(stderr, "error: cannot locate the \"%s\" folder.\n", SPAWN_DIR);
@@ -88,8 +146,10 @@ static cmd_result cmd_delete(void)
 }
 
 /* Clear the console screen through the Console API (no "cls" subprocess). */
-static cmd_result cmd_clear(void)
+static cmd_result cmd_clear(const char *args)
 {
+    (void)args;
+
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (!GetConsoleScreenBufferInfo(h, &csbi)) {
@@ -105,7 +165,8 @@ static cmd_result cmd_clear(void)
     return CMD_CONTINUE;
 }
 
-static cmd_result cmd_quit(void)
+static cmd_result cmd_quit(const char *args)
 {
+    (void)args;
     return CMD_EXIT;
 }

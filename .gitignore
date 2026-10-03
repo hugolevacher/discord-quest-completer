@@ -15,6 +15,10 @@ cmake-install/
 # Dummy game folders created at runtime by the spawner
 spawned_games/
 
+# Cached copy of Discord's game list (downloaded at runtime)
+detectable_games.json
+detectable_games.json.tmp
+
 # Debug / symbol files
 *.pdb
 *.ilk
