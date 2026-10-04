@@ -8,11 +8,13 @@
 #include <stddef.h>
 
 #define GAME_PATH_MAX 260
+#define GAME_ARGS_MAX 256
 
 /* One spawnable Windows exe from a search result. */
 struct game_choice {
     const char *game;          /* game name; valid until the list is refreshed or freed */
     char path[GAME_PATH_MAX];  /* e.g. "_retail_/wow.exe" */
+    char args[GAME_ARGS_MAX];  /* command-line arguments Discord needs, "" if none */
     bool launcher;             /* Discord marks this exe as the game's launcher */
 };
 

@@ -29,6 +29,11 @@ The first search downloads Discord's official list of detectable games
 (about 12 MB) and saves it next to the exe. It is downloaded again
 automatically once it's more than a day old.
 
+Some games (Minecraft, Team Fortress 2, Garry's Mod, Half-Life 2...) are
+detected by command-line arguments, not only the exe path. They are listed as
+`javaw.exe  (args: net.minecraft.client.main.Main)`, and spawning one starts the
+copy with those arguments.
+
 > If a game shows **"none - Discord can't detect this game by its process"**,
 > Discord has no exe registered for it, so this tool can't complete its quest.
 

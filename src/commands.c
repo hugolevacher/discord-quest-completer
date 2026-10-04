@@ -138,7 +138,8 @@ static cmd_result cmd_spawn(const char *args)
 static void choice_label(size_t i, char *buf, size_t cap, void *ctx)
 {
     const struct game_choice *c = (const struct game_choice *)ctx + i;
-    snprintf(buf, cap, "%s%s  (%s)", c->path, c->launcher ? " [launcher]" : "", c->game);
+    snprintf(buf, cap, "%s%s%s%s%s  (%s)", c->path, c->args[0] ? " (args: " : "", c->args,
+             c->args[0] ? ")" : "", c->launcher ? " [launcher]" : "", c->game);
 }
 
 /* Search the list, then let the user pick one of the results to spawn. */
@@ -157,6 +158,7 @@ static cmd_result cmd_find(const char *args)
     int pick = menu_pick("Pick an exe to spawn (Up/Down to move, Enter to spawn, "
                          "Esc to cancel):", n, choice_label, choices);
     if (pick >= 0) {
+        opts.args = choices[pick].args;
         spawn_game(choices[pick].path, &opts);
     }
     free(choices);

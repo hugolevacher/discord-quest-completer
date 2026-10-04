@@ -33,9 +33,64 @@ struct game {
 static struct game *g_games;
 static size_t g_count;
 
-/* Appended to an exe path in struct game.exes when it is the game's launcher. */
+/*
+ * An entry of struct game.exes is "path", optionally followed by ARGS_OPEN,
+ * the command-line arguments and ")", and then, if it is the game's launcher,
+ * LAUNCHER_TAG. Some games (Minecraft, Team Fortress 2...) are only detected
+ * when the process was started with certain arguments.
+ */
 static const char LAUNCHER_TAG[] = "  [launcher]";
 #define LAUNCHER_TAG_LEN (sizeof(LAUNCHER_TAG) - 1)
+static const char ARGS_OPEN[] = "  (args: ";
+#define ARGS_OPEN_LEN (sizeof(ARGS_OPEN) - 1)
+
+/* An exes entry taken apart; the pointers point into the entry. */
+struct exe_ref {
+    const char *path;
+    size_t path_len;
+    const char *args;  /* NULL if the exe needs no arguments */
+    size_t args_len;
+    bool launcher;
+};
+
+static struct exe_ref parse_exe(const char *entry, size_t len)
+{
+    struct exe_ref r = { entry, len, NULL, 0, false };
+
+    if (len >= LAUNCHER_TAG_LEN &&
+        memcmp(entry + len - LAUNCHER_TAG_LEN, LAUNCHER_TAG, LAUNCHER_TAG_LEN) == 0) {
+        r.launcher = true;
+        len -= LAUNCHER_TAG_LEN;
+        r.path_len = len;
+    }
+    if (len > ARGS_OPEN_LEN && entry[len - 1] == ')') {
+        for (size_t i = 0; i + ARGS_OPEN_LEN < len; i++) {
+            if (memcmp(entry + i, ARGS_OPEN, ARGS_OPEN_LEN) == 0) {
+                r.path_len = i;
+                r.args = entry + i + ARGS_OPEN_LEN;
+                r.args_len = len - 1 - (i + ARGS_OPEN_LEN);
+                break;
+            }
+        }
+    }
+    return r;
+}
+
+/* True if entry is exactly one of the '\n'-separated lines of list. */
+static bool lines_have(const char *list, const char *entry)
+{
+    size_t n = strlen(entry);
+    const char *p = list;
+    while (p && *p) {
+        const char *end = strchr(p, '\n');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+        if (len == n && strncmp(p, entry, n) == 0) {
+            return true;
+        }
+        p = end ? end + 1 : NULL;
+    }
+    return false;
+}
 
 /* ---- small growable string ------------------------------------------- */
 
@@ -139,9 +194,27 @@ static bool load_game(const cJSON *json, struct game *g)
             !cJSON_IsString(name)) {
             continue;
         }
-        ok = ok && sb_add(&exes, "\n", name->valuestring);
-        if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(it, "is_launcher"))) {
-            ok = ok && sb_append(&exes, LAUNCHER_TAG, LAUNCHER_TAG_LEN);
+
+        /*
+         * A leading '>' in Discord's list marks an exe matched by its arguments
+         * rather than its path; we spawn it under its plain name with them.
+         */
+        const char *path = name->valuestring;
+        if (path[0] == '>') {
+            path++;
+        }
+        const cJSON *args = cJSON_GetObjectItemCaseSensitive(it, "arguments");
+        bool has_args = cJSON_IsString(args) && args->valuestring[0];
+        bool launcher = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(it, "is_launcher"));
+
+        char entry[GAME_PATH_MAX + GAME_ARGS_MAX + 32];
+        snprintf(entry, sizeof(entry), "%s%s%s%s%s", path,
+                 has_args ? ARGS_OPEN : "", has_args ? args->valuestring : "",
+                 has_args ? ")" : "", launcher ? LAUNCHER_TAG : "");
+
+        /* "hl2.exe" and ">hl2.exe" collapse into one entry once the '>' is gone. */
+        if (!lines_have(exes.s, entry)) {
+            ok = ok && sb_add(&exes, "\n", entry);
         }
     }
 
@@ -354,11 +427,8 @@ static int match_rank(const struct game *g, const char *q, size_t qn)
     while (*p) {
         const char *end = strchr(p, '\n');
         size_t len = end ? (size_t)(end - p) : strlen(p);
-        if (len >= LAUNCHER_TAG_LEN &&
-            memcmp(p + len - LAUNCHER_TAG_LEN, LAUNCHER_TAG, LAUNCHER_TAG_LEN) == 0) {
-            len -= LAUNCHER_TAG_LEN;  /* search the path, not the tag */
-        }
-        if (contains_ci(p, len, q, qn)) {
+        struct exe_ref exe = parse_exe(p, len);  /* search the path only */
+        if (contains_ci(exe.path, exe.path_len, q, qn)) {
             return 3;
         }
         if (!end) {
@@ -467,15 +537,16 @@ static void collect_choices(const struct match *matches, size_t shown,
             const char *end = strchr(p, '\n');
             size_t len = end ? (size_t)(end - p) : strlen(p);
 
-            bool launcher = len >= LAUNCHER_TAG_LEN &&
-                memcmp(p + len - LAUNCHER_TAG_LEN, LAUNCHER_TAG, LAUNCHER_TAG_LEN) == 0;
-            size_t path_len = launcher ? len - LAUNCHER_TAG_LEN : len;
-
-            if (path_len < sizeof(list[n].path)) {
-                memcpy(list[n].path, p, path_len);
-                list[n].path[path_len] = '\0';
+            struct exe_ref exe = parse_exe(p, len);
+            if (exe.path_len < sizeof(list[n].path) && exe.args_len < sizeof(list[n].args)) {
+                memcpy(list[n].path, exe.path, exe.path_len);
+                list[n].path[exe.path_len] = '\0';
+                if (exe.args) {
+                    memcpy(list[n].args, exe.args, exe.args_len);
+                }
+                list[n].args[exe.args_len] = '\0';
                 list[n].game = g->name;
-                list[n].launcher = launcher;
+                list[n].launcher = exe.launcher;
                 n++;
             }
             if (!end) {

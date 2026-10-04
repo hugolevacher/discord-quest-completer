@@ -10,6 +10,7 @@
 /* Optional extras for spawn_game; a zeroed struct means a plain spawn. */
 struct spawn_opts {
     unsigned long seconds;  /* close the window after this long; 0 = never */
+    const char *args;       /* command-line arguments for the game; NULL or "" = none */
 };
 
 /* Write the absolute path of the SPAWN_DIR folder (next to the exe) into out. */

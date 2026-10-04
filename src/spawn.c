@@ -200,11 +200,20 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
     }
 
     unsigned long seconds = opts ? opts->seconds : 0;
-    char cmdline[MAX_PATH + 64];
+    char cmdline[MAX_PATH + 64 + 512];
     int len = snprintf(cmdline, sizeof(cmdline), "\"%s\" %s", target, CHILD_FLAG);
     if (seconds > 0) {
         snprintf(cmdline + len, sizeof(cmdline) - (size_t)len, " %s %lu",
                  CHILD_TIMER_FLAG, seconds);
+        len = (int)strlen(cmdline);
+    }
+    if (opts && opts->args && opts->args[0]) {
+        int room = (int)sizeof(cmdline) - len;
+        int added = snprintf(cmdline + len, (size_t)room, " %s", opts->args);
+        if (added < 0 || added >= room) {
+            fprintf(stderr, "error: the arguments are too long.\n");
+            return;
+        }
     }
 
     STARTUPINFOA si;
