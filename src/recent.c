@@ -14,12 +14,7 @@
 
 static bool recent_path(char *out, size_t cap)
 {
-    char dir[MAX_PATH];
-    if (!fs_exe_dir(dir, sizeof(dir))) {
-        return false;
-    }
-    int written = snprintf(out, cap, "%s\\%s", dir, RECENT_FILE);
-    return written >= 0 && (size_t)written < cap;
+    return fs_data_path(out, cap, RECENT_FILE);
 }
 
 size_t recent_load(struct recent_entry *entries, size_t max)

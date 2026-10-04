@@ -1,7 +1,7 @@
 /*
  * recent.h - the games spawned before, so one can be spawned again from a menu.
  *
- * Kept in RECENT_FILE next to the exe, most recent first, without duplicates.
+ * Kept in RECENT_FILE in the data folder, most recent first, without duplicates.
  */
 #ifndef RECENT_H
 #define RECENT_H

@@ -13,6 +13,13 @@
  */
 bool fs_exe_dir(char *out, size_t cap);
 
+/*
+ * Write the path of a file or folder called name inside the data folder (DATA_DIR
+ * next to the exe, where everything the tool saves lives) into out, creating the
+ * data folder if needed. Returns false if the path does not fit.
+ */
+bool fs_data_path(char *out, size_t cap, const char *name);
+
 /* True if path names an existing file or folder. */
 bool fs_exists(const char *path);
 

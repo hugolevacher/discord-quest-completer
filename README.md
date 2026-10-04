@@ -26,7 +26,7 @@ like in one session.
    the quest, and close it when you're done.
 
 The first search downloads Discord's official list of detectable games
-(about 12 MB) and saves it next to the exe. It is downloaded again
+(about 12 MB) and saves it in the `data` folder next to the exe. It is downloaded again
 automatically once it's more than a day old.
 
 Some games (Minecraft, Team Fortress 2, Garry's Mod, Half-Life 2...) are
@@ -86,10 +86,11 @@ End a command with a time and the game window closes itself when it is up:
 
 ### Cleaning up
 
-Everything the tool spawns goes into a `spawned_games` folder next to
-`spawner.exe`. Run `d` to delete it, or delete the folder yourself. If games are
-still running, `d` offers to stop them first; any it can't delete are skipped
-and reported.
+Everything the tool saves lives in one `data` folder next to `spawner.exe`: the
+game list, your recent games, and the `spawned_games` folder holding what it
+spawns. Run `d` to delete `spawned_games`, or delete the whole `data` folder
+yourself. If games are still running, `d` offers to stop them first; any it
+can't delete are skipped and reported.
 
 ## Note
 

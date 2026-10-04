@@ -3,6 +3,8 @@
  */
 #include "fs.h"
 
+#include "config.h"
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +23,23 @@ bool fs_exe_dir(char *out, size_t cap)
         *last = '\0';
     }
     int written = snprintf(out, cap, "%s", self);
+    return written >= 0 && (size_t)written < cap;
+}
+
+bool fs_data_path(char *out, size_t cap, const char *name)
+{
+    char dir[MAX_PATH];
+    if (!fs_exe_dir(dir, sizeof(dir))) {
+        return false;
+    }
+    char data[MAX_PATH];
+    int written = snprintf(data, sizeof(data), "%s\\%s", dir, DATA_DIR);
+    if (written < 0 || (size_t)written >= sizeof(data)) {
+        return false;
+    }
+    CreateDirectoryA(data, NULL);  /* fine if it already exists */
+
+    written = snprintf(out, cap, "%s\\%s", data, name);
     return written >= 0 && (size_t)written < cap;
 }
 

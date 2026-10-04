@@ -33,3 +33,6 @@ desktop.ini
 recent_games.txt
 latest_release.json
 latest_release.json.tmp
+
+# Everything the tool saves at runtime
+/data/

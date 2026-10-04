@@ -295,15 +295,10 @@ static bool load_file(const char *path)
     return ok;
 }
 
-/* Absolute path of the cache file, next to the exe. */
+/* Absolute path of the cache file, in the data folder. */
 static bool cache_path(char *out, size_t cap)
 {
-    char dir[MAX_PATH];
-    if (!fs_exe_dir(dir, sizeof(dir))) {
-        return false;
-    }
-    int written = snprintf(out, cap, "%s\\%s", dir, GAMES_CACHE_FILE);
-    return written >= 0 && (size_t)written < cap;
+    return fs_data_path(out, cap, GAMES_CACHE_FILE);
 }
 
 static bool download(const char *path, bool verbose)

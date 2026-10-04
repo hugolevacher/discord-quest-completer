@@ -17,9 +17,16 @@
 #define UPDATE_CHECK_FILE "latest_release.json"
 
 /*
+ * Everything the tool saves (the games list, recent games, the spawned games)
+ * lives in this folder next to the exe, so the exe's own folder stays tidy.
+ * It is created when first needed.
+ */
+#define DATA_DIR "data"
+
+/*
  * Every spawned exe and its folder structure is created under this folder,
- * next to the spawner exe (auto-created if missing), so cleanup is just
- * "delete this folder" -- which is what the delete command does.
+ * inside DATA_DIR, so cleanup is just "delete this folder" -- which is what
+ * the delete command does.
  */
 #define SPAWN_DIR "spawned_games"
 
@@ -40,11 +47,11 @@
 #define GAMES_PATH L"/api/v9/applications/detectable"
 #define USER_AGENT L"discord-quest-completer/1.0"
 
-/* The list is cached next to the exe and re-downloaded when older than this. */
+/* The list is cached in DATA_DIR and re-downloaded when older than this. */
 #define GAMES_CACHE_FILE "detectable_games.json"
 #define GAMES_CACHE_MAX_AGE_SECONDS (24 * 60 * 60)
 
-/* Games spawned before, remembered next to the exe for the recent command. */
+/* Games spawned before, remembered in DATA_DIR for the recent command. */
 #define RECENT_FILE "recent_games.txt"
 #define RECENT_MAX 10
 

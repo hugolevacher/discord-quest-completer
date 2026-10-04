@@ -14,12 +14,7 @@
 
 bool spawn_root(char *out, size_t cap)
 {
-    char dir[MAX_PATH];
-    if (!fs_exe_dir(dir, sizeof(dir))) {
-        return false;
-    }
-    int written = snprintf(out, cap, "%s\\%s", dir, SPAWN_DIR);
-    return written >= 0 && (size_t)written < cap;
+    return fs_data_path(out, cap, SPAWN_DIR);
 }
 
 /* "1h 30m 5s"-style text for a number of seconds (zero parts are left out). */

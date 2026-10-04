@@ -65,10 +65,8 @@ static struct check_result fetch_latest(void)
 {
     struct check_result r = { CHECK_FAILED, "", "" };
 
-    char dir[MAX_PATH];
     char file[MAX_PATH];
-    if (!fs_exe_dir(dir, sizeof(dir)) ||
-        snprintf(file, sizeof(file), "%s\\%s", dir, UPDATE_CHECK_FILE) >= (int)sizeof(file)) {
+    if (!fs_data_path(file, sizeof(file), UPDATE_CHECK_FILE)) {
         return r;
     }
 

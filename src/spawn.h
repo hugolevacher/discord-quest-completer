@@ -13,7 +13,7 @@ struct spawn_opts {
     const char *args;       /* command-line arguments for the game; NULL or "" = none */
 };
 
-/* Write the absolute path of the SPAWN_DIR folder (next to the exe) into out. */
+/* Write the absolute path of the SPAWN_DIR folder (inside DATA_DIR) into out. */
 bool spawn_root(char *out, size_t cap);
 
 /*
