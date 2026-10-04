@@ -34,11 +34,11 @@ automatically once it's more than a day old.
 
 ### Spawn a path directly
 
-If you already know the path, type it at the prompt:
+If you already know the path, use `spawn` (or `s`):
 
 ```
-> _retail_/wow.exe
-> RobloxPlayerBeta
+> spawn _retail_/wow.exe
+> s RobloxPlayerBeta
 ```
 
 Use `/` or `\`, and the `.exe` is optional. Folders in the path are created
@@ -50,13 +50,12 @@ the exe name), not just the file name.
 | Command | What it does |
 |---|---|
 | `h` / `help` | Show the commands |
+| `s` / `spawn <path>` | Spawn a game by its exe path |
 | `f` / `find <name>` | Search Discord's game list, then pick a result to spawn |
 | `r` / `refresh` | Download Discord's game list again now |
 | `d` / `delete` | Delete every spawned game (skips any that are still running) |
 | `c` / `clear` | Clear the screen |
 | `q` / `quit` | Exit (spawned game windows keep running) |
-
-Anything that isn't a command is treated as a path to spawn.
 
 ### Cleaning up
 

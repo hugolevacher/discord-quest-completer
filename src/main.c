@@ -13,7 +13,7 @@
  *
  * Layout:
  *   main.c      prompt loop and child-mode switch
- *   commands.c  built-in commands (help, find, refresh, delete, clear, quit)
+ *   commands.c  built-in commands (help, spawn, find, refresh, delete, clear, quit)
  *   spawn.c     building the target path and launching dummy games
  *   games.c     Discord's detectable-games list: download, cache, search
  *   menu.c      arrow-key selection menu
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 
         cmd_result result;
         if (!command_run(in, &result)) {
-            spawn_game(in);
+            printf("Unknown command. Type 'h' for help.\n");
         } else if (result == CMD_EXIT) {
             break;
         }

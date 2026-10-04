@@ -18,6 +18,7 @@
 #include <string.h>
 
 static cmd_result cmd_help(const char *args);
+static cmd_result cmd_spawn(const char *args);
 static cmd_result cmd_find(const char *args);
 static cmd_result cmd_refresh(const char *args);
 static cmd_result cmd_delete(const char *args);
@@ -34,6 +35,8 @@ struct command {
 
 static const struct command COMMANDS[] = {
     { "h", "help",    NULL,     "Show this help",                                  cmd_help    },
+    { "s", "spawn",   "<path>", "Spawn a game by exe path, e.g. spawn _retail_/wow.exe",
+                                                                                   cmd_spawn   },
     { "f", "find",    "<name>", "Look up a game in Discord's list, then pick one to spawn",
                                                                                    cmd_find    },
     { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
@@ -66,13 +69,10 @@ bool command_run(const char *input, cmd_result *result)
             continue;
         }
 
-        /*
-         * A command that takes no argument but is followed by text isn't that
-         * command: let the line fall through to spawning, so a path such as
-         * "d folder/game.exe" still spawns.
-         */
         if (!c->args && *rest) {
-            return false;
+            printf("'%s' takes no arguments.\n", c->name);
+            *result = CMD_CONTINUE;
+            return true;
         }
         if (c->args && !*rest) {
             printf("usage: %s %s\n", c->name, c->args);
@@ -86,7 +86,7 @@ bool command_run(const char *input, cmd_result *result)
     return false;
 }
 
-/* List every command plus how to spawn a game. */
+/* List every command plus examples of spawn paths. */
 static cmd_result cmd_help(const char *args)
 {
     (void)args;
@@ -99,11 +99,17 @@ static cmd_result cmd_help(const char *args)
                  c->args ? " " : "", c->args ? c->args : "");
         printf("  %-18s %s\n", label, c->desc);
     }
-    printf("\nAnything else is treated as a game path to spawn, for example:\n");
-    printf("  _retail_/wow.exe        (folder \"_retail_\", exe \"wow.exe\")\n");
-    printf("  RobloxPlayerBeta        (just a name, .exe optional)\n");
+    printf("\nSpawn paths, for example:\n");
+    printf("  spawn _retail_/wow.exe   (folder \"_retail_\", exe \"wow.exe\")\n");
+    printf("  spawn RobloxPlayerBeta   (just a name, .exe optional)\n");
     printf("You can use / or \\, and the .exe is optional.\n");
     printf("Easiest: 'find <game>', then pick a result with the arrow keys and Enter.\n");
+    return CMD_CONTINUE;
+}
+
+static cmd_result cmd_spawn(const char *args)
+{
+    spawn_game(args);
     return CMD_CONTINUE;
 }
 
