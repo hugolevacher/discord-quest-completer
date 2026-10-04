@@ -77,6 +77,7 @@ End a command with a time and the game window closes itself when it is up:
 | `rc` / `recent [time]` | Pick a game you spawned before and spawn it again |
 | `l` / `list` | Show the running games and how long each has been running |
 | `x` / `stop [all]` | Stop a running game (pick from a menu), or all of them |
+| `w` / `watch <name>` | Wait until Discord adds an exe for a game that has none, then tell you (Esc stops) |
 | `r` / `refresh` | Download Discord's game list again now |
 | `d` / `delete` | Delete every spawned game (offers to stop the running ones first) |
 | `c` / `clear` | Clear the screen |

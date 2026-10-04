@@ -38,6 +38,11 @@
 #define RECENT_FILE "recent_games.txt"
 #define RECENT_MAX 10
 
+/* How often the watch command re-downloads the list. */
+#ifndef WATCH_INTERVAL_SECONDS
+#define WATCH_INTERVAL_SECONDS (10 * 60)
+#endif
+
 /* Most games the find command prints for one search. */
 #define FIND_MAX_RESULTS 10
 

@@ -28,6 +28,13 @@ struct game_choice {
  */
 void games_find(const char *query, struct game_choice **choices, size_t *n_choices);
 
+/*
+ * Wait for Discord to add an exe for the game best matching query: re-download
+ * the list every WATCH_INTERVAL_SECONDS and report when the game has one.
+ * Blocks until that happens or the user presses Esc.
+ */
+void games_watch(const char *query);
+
 /* Download the list now, replacing the cached copy. */
 bool games_refresh(void);
 
