@@ -22,8 +22,8 @@ like in one session.
 2. The matching games are listed with the exe paths Discord looks for.
 3. Pick a path with the **Up/Down** arrow keys and press **Enter** to spawn it
    (**Esc** cancels).
-4. A window titled after the game's exe opens. Leave it open while Discord checks
-   the quest, and close it when you're done.
+4. A window titled after the game's exe opens, minimized in the taskbar. Leave it
+   running while Discord checks the quest, and close it when you're done.
 
 The first search downloads Discord's official list of detectable games
 (about 12 MB) and saves it in the `data` folder next to the exe. It is downloaded again
@@ -40,7 +40,8 @@ copy with those arguments.
 ### Streaming quests
 
 Each spawned game has its own window, so quests that ask you to **stream** a
-game work too: start a Go Live stream in Discord and pick the game's window.
+game work too: restore the game's window from the taskbar (Windows can't stream
+a minimized window), then start a Go Live stream in Discord and pick it.
 It shows how long the game has been running and a moving bar, so the stream
 isn't a frozen picture.
 

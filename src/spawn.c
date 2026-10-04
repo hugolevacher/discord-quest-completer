@@ -225,7 +225,7 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
         return;
     }
 
-    printf("Started %s\\%s (PID %lu) in a new window.\n",
+    printf("Started %s\\%s (PID %lu), minimized in the taskbar.\n",
            SPAWN_DIR, rel, (unsigned long)pi.dwProcessId);
     if (seconds > 0) {
         char text[32];

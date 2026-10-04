@@ -213,7 +213,11 @@ int child_main(int argc, char **argv)
 
     g.start = GetTickCount();
     SetTimer(hwnd, 1, FRAME_MS, NULL);
-    ShowWindow(hwnd, SW_SHOWNOACTIVATE);  /* don't steal focus from the prompt */
+    /*
+     * Start minimized, in the taskbar and out of the way. Discord still detects
+     * a minimized window (unlike a minimized console); to stream it, restore it.
+     */
+    ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
 
     MSG msg;
     while (GetMessageA(&msg, NULL, 0, 0) > 0) {
