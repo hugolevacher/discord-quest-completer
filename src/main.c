@@ -8,21 +8,26 @@
  * World of Warcraft the registered executable is "_retail_/wow.exe", so the
  * running exe must live in a folder named "_retail_" and be called "wow.exe".
  * This tool takes such a suffix, copies itself to SPAWN_DIR\<suffix> (creating
- * the folders) and runs the copy from there with CHILD_FLAG, which just keeps
- * it alive until its window is closed.
+ * the folders) and runs the copy from there with CHILD_FLAG, which opens a game
+ * window and keeps it alive until that window is closed.
  *
  * Layout:
- *   main.c      prompt loop and child-mode switch
- *   commands.c  built-in commands (help, spawn, find, refresh, delete, clear, quit)
+ *   main.c      prompt loop, command-line mode and child-mode switch
+ *   commands.c  the prompt's commands (help, spawn, find, list, stop, ...)
  *   spawn.c     building the target path and launching dummy games
+ *   child.c     the game window a spawned copy shows
+ *   procs.c     finding and stopping running spawned games
+ *   recent.c    remembering spawned games for the recent command
  *   games.c     Discord's detectable-games list: download, cache, search
+ *   update.c    checking GitHub for a newer release
  *   menu.c      arrow-key selection menu
  *   http.c      HTTPS download (WinHTTP)
- *   fs.c        filesystem helpers (mkdir -p, recursive delete, file reads)
+ *   fs.c        filesystem helpers (data folder, mkdir -p, recursive delete)
  *   config.h    constants
  *
  * Third-party: cJSON (third_party/cjson, MIT licence) parses the games list.
  */
+#include "child.h"
 #include "commands.h"
 #include "config.h"
 #include "games.h"
@@ -117,7 +122,7 @@ static int run_once(int argc, char **argv)
 int main(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], CHILD_FLAG) == 0) {
-        return spawn_child_main(argc, argv);
+        return child_main(argc, argv);
     }
 
     /* Game names in Discord's list are UTF-8 (e.g. "Pokémon"). */

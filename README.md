@@ -22,7 +22,7 @@ like in one session.
 2. The matching games are listed with the exe paths Discord looks for.
 3. Pick a path with the **Up/Down** arrow keys and press **Enter** to spawn it
    (**Esc** cancels).
-4. A new window opens running the game's exe. Leave it open while Discord checks
+4. A window titled after the game's exe opens. Leave it open while Discord checks
    the quest, and close it when you're done.
 
 The first search downloads Discord's official list of detectable games
@@ -36,6 +36,13 @@ copy with those arguments.
 
 > If a game shows **"none - Discord can't detect this game by its process"**,
 > Discord has no exe registered for it, so this tool can't complete its quest.
+
+### Streaming quests
+
+Each spawned game has its own window, so quests that ask you to **stream** a
+game work too: start a Go Live stream in Discord and pick the game's window.
+It shows how long the game has been running and a moving bar, so the stream
+isn't a frozen picture.
 
 ### Spawn a path directly
 

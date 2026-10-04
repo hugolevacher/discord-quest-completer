@@ -219,7 +219,7 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
     ZeroMemory(&pi, sizeof(pi));
 
     if (!CreateProcessA(NULL, cmdline, NULL, NULL, FALSE,
-                        CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+                        DETACHED_PROCESS, NULL, NULL, &si, &pi)) {
         fprintf(stderr, "error: could not start %s\\%s (Windows error %lu).\n",
                 SPAWN_DIR, rel, (unsigned long)GetLastError());
         return;
@@ -237,42 +237,4 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
     CloseHandle(pi.hThread);
 
     recent_add(rel, opts ? opts->args : NULL);
-}
-
-int spawn_child_main(int argc, char **argv)
-{
-    unsigned long limit = 0;  /* seconds to run for; 0 = until closed */
-    for (int i = 2; i + 1 < argc; i++) {
-        if (strcmp(argv[i], CHILD_TIMER_FLAG) == 0) {
-            limit = strtoul(argv[i + 1], NULL, 10);
-        }
-    }
-
-    char self[MAX_PATH];
-    GetModuleFileNameA(NULL, self, MAX_PATH);
-
-    const char *name = strrchr(self, '\\');
-    name = name ? name + 1 : self;
-
-    /* Title the window after the game so multiple spawns are easy to tell apart. */
-    SetConsoleTitleA(name);
-
-    printf("Running as process: %s\n", name);
-    printf("Full path: %s\n", self);
-    printf("PID: %lu\n", (unsigned long)GetCurrentProcessId());
-    if (limit > 0) {
-        char text[32];
-        spawn_format_duration(limit, text, sizeof(text));
-        printf("This process closes itself after %s (or close this window / Ctrl+C).\n\n",
-               text);
-    } else {
-        printf("This process stays alive until you close this window (or Ctrl+C).\n\n");
-    }
-
-    for (unsigned long seconds = 0; limit == 0 || seconds < limit; seconds++) {
-        printf("[%s] alive - %lu s\r", name, seconds);
-        fflush(stdout);
-        Sleep(1000);
-    }
-    return 0;  /* time is up: the window closes with the process */
 }

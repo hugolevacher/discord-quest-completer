@@ -35,14 +35,9 @@ void spawn_split_duration(char *text, unsigned long *seconds);
 /*
  * Spawn one dummy game whose exe path ends with suffix (e.g. "_retail_/wow.exe"):
  * copy this exe to SPAWN_DIR\<suffix>, creating any sub-folders, and launch it
- * in a new console window. Discord only detects the copy when that window is
- * hosted by Windows Terminal, not by the classic console window. Starting it
- * minimized forces the classic console window, so the copy starts normally.
+ * without a console; the copy opens its own game window (see child.c).
  * opts may be NULL. Problems are reported; this never exits the program.
  */
 void spawn_game(const char *suffix, const struct spawn_opts *opts);
-
-/* Entry point for a spawned copy: stay alive until its window is closed. */
-int spawn_child_main(int argc, char **argv);
 
 #endif /* SPAWN_H */

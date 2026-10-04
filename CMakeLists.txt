@@ -12,6 +12,7 @@ add_executable(Discord_quest
         src/main.c
         src/commands.c
         src/spawn.c
+        src/child.c
         src/games.c
         src/procs.c
         src/recent.c
@@ -20,7 +21,7 @@ add_executable(Discord_quest
         src/http.c
         src/fs.c)
 
-target_link_libraries(Discord_quest PRIVATE cjson winhttp)
+target_link_libraries(Discord_quest PRIVATE cjson winhttp user32 gdi32)
 target_compile_definitions(Discord_quest PRIVATE WIN32_LEAN_AND_MEAN)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
