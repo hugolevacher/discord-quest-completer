@@ -63,17 +63,19 @@ End a command with a time and the game window closes itself when it is up:
 | `h` / `help` | Show the commands |
 | `s` / `spawn <path> [time]` | Spawn a game by its exe path; add a time to close it later |
 | `f` / `find <name> [time]` | Search Discord's game list, then pick a result to spawn |
+| `l` / `list` | Show the running games and how long each has been running |
+| `x` / `stop [all]` | Stop a running game (pick from a menu), or all of them |
 | `r` / `refresh` | Download Discord's game list again now |
-| `d` / `delete` | Delete every spawned game (skips any that are still running) |
+| `d` / `delete` | Delete every spawned game (offers to stop the running ones first) |
 | `c` / `clear` | Clear the screen |
 | `q` / `quit` | Exit (spawned game windows keep running) |
 
 ### Cleaning up
 
 Everything the tool spawns goes into a `spawned_games` folder next to
-`spawner.exe`. Close the game windows, then run `d` to delete it, or delete the
-folder yourself. If a game is still running, `d` skips it, deletes the rest and
-tells you.
+`spawner.exe`. Run `d` to delete it, or delete the folder yourself. If games are
+still running, `d` offers to stop them first; any it can't delete are skipped
+and reported.
 
 ## Note
 

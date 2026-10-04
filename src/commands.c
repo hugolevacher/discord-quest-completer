@@ -10,6 +10,7 @@
 #include "fs.h"
 #include "games.h"
 #include "menu.h"
+#include "procs.h"
 #include "spawn.h"
 
 #include <windows.h>
@@ -20,6 +21,8 @@
 static cmd_result cmd_help(const char *args);
 static cmd_result cmd_spawn(const char *args);
 static cmd_result cmd_find(const char *args);
+static cmd_result cmd_list(const char *args);
+static cmd_result cmd_stop(const char *args);
 static cmd_result cmd_refresh(const char *args);
 static cmd_result cmd_delete(const char *args);
 static cmd_result cmd_clear(const char *args);
@@ -28,7 +31,8 @@ static cmd_result cmd_quit(const char *args);
 struct command {
     const char *key;   /* short form, e.g. "h" */
     const char *name;  /* long form, e.g. "help" */
-    const char *args;  /* argument placeholder shown in help, NULL if none */
+    const char *args;  /* argument placeholder shown in help, NULL if none; one
+                          starting with '[' is optional, any other is required */
     const char *desc;  /* shown by the help command */
     cmd_result (*run)(const char *args);
 };
@@ -41,8 +45,12 @@ static const struct command COMMANDS[] = {
     { "f", "find",    "<name> [time]",
                                 "Look up a game in Discord's list, then pick one to spawn",
                                                                                    cmd_find    },
+    { "l", "list",    NULL,     "Show the running games and how long they have run",
+                                                                                   cmd_list    },
+    { "x", "stop",    "[all]",  "Stop a running game (pick from a menu), or all of them",
+                                                                                   cmd_stop    },
     { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
-    { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (skips running games)",
+    { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (offers to stop running games)",
                                                                                    cmd_delete  },
     { "c", "clear",   NULL,     "Clear the screen",                                cmd_clear   },
     { "q", "quit",    NULL,     "Exit (spawned game windows keep running)",        cmd_quit    },
@@ -76,7 +84,7 @@ bool command_run(const char *input, cmd_result *result)
             *result = CMD_CONTINUE;
             return true;
         }
-        if (c->args && !*rest) {
+        if (c->args && c->args[0] != '[' && !*rest) {
             printf("usage: %s %s\n", c->name, c->args);
             *result = CMD_CONTINUE;
             return true;
@@ -172,7 +180,112 @@ static cmd_result cmd_refresh(const char *args)
     return CMD_CONTINUE;
 }
 
-/* Wipe the SPAWN_DIR folder, skipping (and reporting) games still running. */
+static void print_running(const struct running_game *games, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        char up[32];
+        spawn_format_duration(games[i].seconds, up, sizeof(up));
+        printf("  PID %-6lu %-11s %s\n", games[i].pid, up, games[i].path);
+    }
+}
+
+static cmd_result cmd_list(const char *args)
+{
+    (void)args;
+
+    struct running_game *games;
+    size_t n = procs_list(&games);
+    if (n == 0) {
+        printf("No spawned games are running.\n");
+        return CMD_CONTINUE;
+    }
+    printf("%lu running (PID, running for, path):\n", (unsigned long)n);
+    print_running(games, n);
+    free(games);
+    return CMD_CONTINUE;
+}
+
+/* Stop games[from..to) and report each. Returns how many are gone. */
+static size_t stop_games(const struct running_game *games, size_t from, size_t to)
+{
+    size_t stopped = 0;
+    for (size_t i = from; i < to; i++) {
+        if (procs_stop(games[i].pid)) {
+            printf("Stopped %s (PID %lu).\n", games[i].path, games[i].pid);
+            stopped++;
+        } else {
+            fprintf(stderr, "error: could not stop %s (PID %lu).\n",
+                    games[i].path, games[i].pid);
+        }
+    }
+    return stopped;
+}
+
+/* Menu text for stop: one row per running game, then "stop all". */
+struct stop_menu {
+    const struct running_game *games;
+    size_t n;
+};
+
+static void stop_label(size_t i, char *buf, size_t cap, void *ctx)
+{
+    const struct stop_menu *m = ctx;
+    if (i >= m->n) {
+        snprintf(buf, cap, "Stop all %lu games", (unsigned long)m->n);
+        return;
+    }
+    char up[32];
+    spawn_format_duration(m->games[i].seconds, up, sizeof(up));
+    snprintf(buf, cap, "%s  (PID %lu, running %s)", m->games[i].path, m->games[i].pid, up);
+}
+
+static cmd_result cmd_stop(const char *args)
+{
+    if (*args && _stricmp(args, "all") != 0) {
+        printf("usage: stop [all]\n");
+        return CMD_CONTINUE;
+    }
+
+    struct running_game *games;
+    size_t n = procs_list(&games);
+    if (n == 0) {
+        printf("No spawned games are running.\n");
+        return CMD_CONTINUE;
+    }
+
+    if (*args) {
+        stop_games(games, 0, n);
+    } else {
+        struct stop_menu menu = { games, n };
+        int pick = menu_pick("Pick a game to stop (Up/Down to move, Enter to stop, "
+                             "Esc to cancel):", n + 1, stop_label, &menu);
+        if (pick >= 0 && (size_t)pick < n) {
+            stop_games(games, (size_t)pick, (size_t)pick + 1);
+        } else if (pick >= 0) {
+            stop_games(games, 0, n);
+        }
+    }
+    free(games);
+    return CMD_CONTINUE;
+}
+
+/* Ask a yes/no question on the prompt; anything but "y"/"yes" means no. */
+static bool confirm(const char *question)
+{
+    printf("%s [y/N] ", question);
+    fflush(stdout);
+
+    char answer[16];
+    if (!fgets(answer, sizeof(answer), stdin)) {
+        return false;
+    }
+    return answer[0] == 'y' || answer[0] == 'Y';
+}
+
+/*
+ * Wipe the SPAWN_DIR folder. Running games can't be deleted, so offer to stop
+ * them first; any that are left are skipped and reported.
+ */
 static cmd_result cmd_delete(const char *args)
 {
     (void)args;
@@ -185,6 +298,17 @@ static cmd_result cmd_delete(const char *args)
     if (!fs_exists(root)) {
         printf("Nothing to delete - \"%s\" does not exist.\n", SPAWN_DIR);
         return CMD_CONTINUE;
+    }
+
+    struct running_game *games;
+    size_t running = procs_list(&games);
+    if (running > 0) {
+        printf("%lu game(s) are still running:\n", (unsigned long)running);
+        print_running(games, running);
+        if (confirm("Stop them so they can be deleted?")) {
+            stop_games(games, 0, running);
+        }
+        free(games);
     }
 
     int deleted = 0;

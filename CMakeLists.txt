@@ -13,6 +13,7 @@ add_executable(Discord_quest
         src/commands.c
         src/spawn.c
         src/games.c
+        src/procs.c
         src/menu.c
         src/http.c
         src/fs.c)

@@ -22,11 +22,11 @@ bool spawn_root(char *out, size_t cap)
 }
 
 /* "1h 30m 5s"-style text for a number of seconds (zero parts are left out). */
-static void format_duration(unsigned long seconds, char *out, size_t cap)
+void spawn_format_duration(unsigned long long seconds, char *out, size_t cap)
 {
-    unsigned long h = seconds / 3600;
-    unsigned long m = seconds / 60 % 60;
-    unsigned long s = seconds % 60;
+    unsigned long h = (unsigned long)(seconds / 3600);
+    unsigned long m = (unsigned long)(seconds / 60 % 60);
+    unsigned long s = (unsigned long)(seconds % 60);
     int n = 0;
     out[0] = '\0';
     if (h) {
@@ -235,7 +235,7 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
            SPAWN_DIR, rel, (unsigned long)pi.dwProcessId);
     if (seconds > 0) {
         char text[32];
-        format_duration(seconds, text, sizeof(text));
+        spawn_format_duration(seconds, text, sizeof(text));
         printf("It will close itself after %s.\n", text);
     }
 
@@ -266,7 +266,7 @@ int spawn_child_main(int argc, char **argv)
     printf("PID: %lu\n", (unsigned long)GetCurrentProcessId());
     if (limit > 0) {
         char text[32];
-        format_duration(limit, text, sizeof(text));
+        spawn_format_duration(limit, text, sizeof(text));
         printf("This process closes itself after %s (or close this window / Ctrl+C).\n\n",
                text);
     } else {

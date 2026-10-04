@@ -22,6 +22,9 @@ bool spawn_root(char *out, size_t cap);
  */
 bool spawn_parse_duration(const char *s, unsigned long *seconds);
 
+/* "1h 30m 5s"-style text for a number of seconds (zero parts are left out). */
+void spawn_format_duration(unsigned long long seconds, char *out, size_t cap);
+
 /*
  * If the last space-separated word of text is a duration, cut it off (text is
  * modified in place, trailing space removed) and store it in *seconds; otherwise

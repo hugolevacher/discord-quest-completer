@@ -19,6 +19,9 @@
 /* Follows CHILD_FLAG: the number of seconds after which the copy exits. */
 #define CHILD_TIMER_FLAG "--for"
 
+/* Longest spawn path (relative to SPAWN_DIR) the list command reports. */
+#define GAME_PROC_PATH_MAX 260
+
 /* Longest line accepted at the prompt, including the newline. */
 #define INPUT_MAX 512
 
