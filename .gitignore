@@ -28,3 +28,6 @@ detectable_games.json.tmp
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Games spawned before (remembered for the recent command)
+recent_games.txt

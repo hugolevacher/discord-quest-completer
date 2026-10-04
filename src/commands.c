@@ -11,6 +11,7 @@
 #include "games.h"
 #include "menu.h"
 #include "procs.h"
+#include "recent.h"
 #include "spawn.h"
 
 #include <windows.h>
@@ -21,6 +22,7 @@
 static cmd_result cmd_help(const char *args);
 static cmd_result cmd_spawn(const char *args);
 static cmd_result cmd_find(const char *args);
+static cmd_result cmd_recent(const char *args);
 static cmd_result cmd_list(const char *args);
 static cmd_result cmd_stop(const char *args);
 static cmd_result cmd_refresh(const char *args);
@@ -45,7 +47,9 @@ static const struct command COMMANDS[] = {
     { "f", "find",    "<name> [time]",
                                 "Look up a game in Discord's list, then pick one to spawn",
                                                                                    cmd_find    },
-    { "l", "list",    NULL,     "Show the running games and how long they have run",
+    { "rc", "recent", "[time]", "Pick a game you spawned before and spawn it again",
+                                                                                   cmd_recent  },
+    { "l", "list",    NULL,    "Show the running games and how long they have run",
                                                                                    cmd_list    },
     { "x", "stop",    "[all]",  "Stop a running game (pick from a menu), or all of them",
                                                                                    cmd_stop    },
@@ -177,6 +181,38 @@ static cmd_result cmd_refresh(const char *args)
 {
     (void)args;
     games_refresh();
+    return CMD_CONTINUE;
+}
+
+static void recent_label(size_t i, char *buf, size_t cap, void *ctx)
+{
+    const struct recent_entry *e = (const struct recent_entry *)ctx + i;
+    snprintf(buf, cap, "%s%s%s%s", e->path, e->args[0] ? "  (args: " : "", e->args,
+             e->args[0] ? ")" : "");
+}
+
+/* Pick one of the games spawned before and spawn it again. */
+static cmd_result cmd_recent(const char *args)
+{
+    struct spawn_opts opts = { 0 };
+    if (*args && !spawn_parse_duration(args, &opts.seconds)) {
+        printf("usage: recent [time]   (a time looks like 15m, 2h or 1h30m)\n");
+        return CMD_CONTINUE;
+    }
+
+    struct recent_entry entries[RECENT_MAX];
+    size_t n = recent_load(entries, RECENT_MAX);
+    if (n == 0) {
+        printf("No games spawned yet.\n");
+        return CMD_CONTINUE;
+    }
+
+    int pick = menu_pick("Pick a game to spawn again (Up/Down to move, Enter to spawn, "
+                         "Esc to cancel):", n, recent_label, entries);
+    if (pick >= 0) {
+        opts.args = entries[pick].args;
+        spawn_game(entries[pick].path, &opts);
+    }
     return CMD_CONTINUE;
 }
 

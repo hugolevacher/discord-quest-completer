@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "fs.h"
+#include "recent.h"
 
 #include <windows.h>
 #include <stdio.h>
@@ -241,6 +242,8 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+
+    recent_add(rel, opts ? opts->args : NULL);
 }
 
 int spawn_child_main(int argc, char **argv)

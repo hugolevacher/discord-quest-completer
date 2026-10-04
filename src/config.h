@@ -34,6 +34,10 @@
 #define GAMES_CACHE_FILE "detectable_games.json"
 #define GAMES_CACHE_MAX_AGE_SECONDS (24 * 60 * 60)
 
+/* Games spawned before, remembered next to the exe for the recent command. */
+#define RECENT_FILE "recent_games.txt"
+#define RECENT_MAX 10
+
 /* Most games the find command prints for one search. */
 #define FIND_MAX_RESULTS 10
 

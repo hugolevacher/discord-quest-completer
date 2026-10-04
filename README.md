@@ -63,6 +63,7 @@ End a command with a time and the game window closes itself when it is up:
 | `h` / `help` | Show the commands |
 | `s` / `spawn <path> [time]` | Spawn a game by its exe path; add a time to close it later |
 | `f` / `find <name> [time]` | Search Discord's game list, then pick a result to spawn |
+| `rc` / `recent [time]` | Pick a game you spawned before and spawn it again |
 | `l` / `list` | Show the running games and how long each has been running |
 | `x` / `stop [all]` | Stop a running game (pick from a menu), or all of them |
 | `r` / `refresh` | Download Discord's game list again now |
