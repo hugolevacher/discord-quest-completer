@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 /*
  * One game, reduced to what "find" prints. Multi-value fields are
@@ -301,20 +300,16 @@ static bool cache_path(char *out, size_t cap)
     return fs_data_path(out, cap, GAMES_CACHE_FILE);
 }
 
-static bool download(const char *path, bool verbose)
+static bool download(const char *path)
 {
-    if (verbose) {
-        printf("Downloading Discord's game list...\n");
-        fflush(stdout);
-    }
+    printf("Downloading Discord's game list...\n");
+    fflush(stdout);
 
     size_t bytes;
     if (!http_download(GAMES_HOST, GAMES_PATH, path, &bytes)) {
         return false;
     }
-    if (verbose) {
-        printf("Downloaded %.1f MB.\n", (double)bytes / (1024.0 * 1024.0));
-    }
+    printf("Downloaded %.1f MB.\n", (double)bytes / (1024.0 * 1024.0));
     return true;
 }
 
@@ -337,7 +332,7 @@ static bool ensure_loaded(void)
     long long age = 0;
     bool cached = fs_file_age(path, &age);
     if (!cached || age > GAMES_CACHE_MAX_AGE_SECONDS) {
-        if (!download(path, true)) {
+        if (!download(path)) {
             if (!cached) {
                 return false;
             }
@@ -355,7 +350,7 @@ bool games_refresh(void)
         fprintf(stderr, "error: cannot locate the game list cache.\n");
         return false;
     }
-    if (!download(path, true) || !load_file(path)) {
+    if (!download(path) || !load_file(path)) {
         return false;
     }
     printf("%lu games loaded.\n", (unsigned long)g_count);
@@ -605,126 +600,4 @@ void games_find(const char *query, struct game_choice **choices, size_t *n_choic
         collect_choices(matches, shown, choices, n_choices);
     }
     free(matches);
-}
-
-/* ---- watching --------------------------------------------------------- */
-
-/* The game whose name or alias matches q best (exe paths don't count), or NULL. */
-static const struct game *best_by_name(const char *q)
-{
-    size_t qn = strlen(q);
-    const struct game *best = NULL;
-    int best_rank = 0;
-    for (size_t i = 0; i < g_count; i++) {
-        int rank = match_rank(&g_games[i], q, qn);
-        if (rank < 0 || rank > 2) {
-            continue;
-        }
-        if (!best || rank < best_rank ||
-            (rank == best_rank && strlen(g_games[i].name) < strlen(best->name))) {
-            best = &g_games[i];
-            best_rank = rank;
-        }
-    }
-    return best;
-}
-
-static const struct game *game_by_id(const char *id)
-{
-    for (size_t i = 0; i < g_count; i++) {
-        if (strcmp(g_games[i].id, id) == 0) {
-            return &g_games[i];
-        }
-    }
-    return NULL;
-}
-
-/* True if Esc was pressed since the last call. Always false off a console. */
-static bool esc_pressed(void)
-{
-    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD mode;
-    if (!GetConsoleMode(in, &mode)) {
-        return false;
-    }
-
-    INPUT_RECORD rec;
-    DWORD got;
-    while (PeekConsoleInputW(in, &rec, 1, &got) && got > 0) {
-        ReadConsoleInputW(in, &rec, 1, &got);
-        if (rec.EventType == KEY_EVENT && rec.Event.KeyEvent.bKeyDown &&
-            rec.Event.KeyEvent.wVirtualKeyCode == VK_ESCAPE) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static void print_clock(void)
-{
-    time_t now = time(NULL);
-    char text[16];
-    strftime(text, sizeof(text), "%H:%M", localtime(&now));
-    printf("[%s] ", text);
-}
-
-void games_watch(const char *query)
-{
-    if (!ensure_loaded()) {
-        return;
-    }
-    const struct game *g = best_by_name(query);
-    if (!g) {
-        printf("No game matching \"%s\".\n", query);
-        return;
-    }
-    if (*g->exes) {
-        print_game(g);
-        printf("\nDiscord already detects %s - use 'find' to spawn it.\n", g->name);
-        return;
-    }
-
-    /* The list is replaced on every check, so remember the game by its id. */
-    char id[64];
-    char name[256];
-    snprintf(id, sizeof(id), "%s", g->id);
-    snprintf(name, sizeof(name), "%s", g->name);
-
-    printf("Watching %s: Discord has no exe for it yet.\n"
-           "Checking Discord's list every %d minute(s). Press Esc to stop.\n",
-           name, WATCH_INTERVAL_SECONDS / 60);
-    esc_pressed();  /* drop keys typed before now */
-
-    for (;;) {
-        for (int waited = 0; waited < WATCH_INTERVAL_SECONDS * 1000; waited += 250) {
-            if (esc_pressed()) {
-                printf("Stopped watching %s.\n", name);
-                return;
-            }
-            Sleep(250);
-        }
-
-        print_clock();
-        printf("Checking...\n");
-
-        char path[MAX_PATH];
-        if (!cache_path(path, sizeof(path)) || !download(path, false) ||
-            !load_file(path)) {
-            printf("Check failed - will try again.\n");
-            continue;
-        }
-        g = game_by_id(id);
-        if (!g) {
-            printf("%s is no longer in Discord's list - stopped watching.\n", name);
-            return;
-        }
-        if (*g->exes) {
-            printf("\a");
-            print_clock();
-            printf("Discord now detects %s!\n", name);
-            print_game(g);
-            printf("\nUse 'find %s' to spawn it.\n", name);
-            return;
-        }
-    }
 }

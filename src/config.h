@@ -8,7 +8,7 @@
 
 /* This build's version; compared with the latest GitHub release tag (vX.Y.Z). */
 #ifndef APP_VERSION
-#define APP_VERSION "1.0.0"
+#define APP_VERSION "1.1.0"
 #endif
 
 /* Where the update check looks for the latest release. */
@@ -54,11 +54,6 @@
 /* Games spawned before, remembered in DATA_DIR for the recent command. */
 #define RECENT_FILE "recent_games.txt"
 #define RECENT_MAX 10
-
-/* How often the watch command re-downloads the list. */
-#ifndef WATCH_INTERVAL_SECONDS
-#define WATCH_INTERVAL_SECONDS (10 * 60)
-#endif
 
 /* Most games the find command prints for one search. */
 #define FIND_MAX_RESULTS 10

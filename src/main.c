@@ -80,15 +80,15 @@ static bool read_line(char *buf, size_t cap)
 
 /*
  * Run the command line as a single prompt line, then exit:
- *   spawner.exe find minecraft 15m      a command, with its arguments
- *   spawner.exe _retail_/wow.exe 15m    anything else is a path to spawn
+ *   spawner.exe find minecraft 15m
+ *   spawner.exe spawn _retail_/wow.exe 15m
+ * Only commands are accepted, as at the prompt.
  */
 static int run_once(int argc, char **argv)
 {
     if (argv[1][0] == '-') {
         printf("usage: spawner.exe <command> [arguments]\n"
-               "       spawner.exe <game path> [time]\n"
-               "Run without arguments for the interactive prompt; its 'h' lists the "
+               "Run without arguments for the interactive prompt; 'h' lists the "
                "commands.\n");
         return 1;
     }
@@ -108,9 +108,8 @@ static int run_once(int argc, char **argv)
 
     cmd_result result;
     if (!command_run(line, &result)) {
-        struct spawn_opts opts = { 0 };
-        spawn_split_duration(line, &opts.seconds);
-        spawn_game(line, &opts);
+        fprintf(stderr, "Unknown command. Run 'spawner.exe h' for help.\n");
+        return 1;
     }
     return 0;
 }

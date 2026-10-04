@@ -26,7 +26,6 @@ static cmd_result cmd_find(const char *args);
 static cmd_result cmd_recent(const char *args);
 static cmd_result cmd_list(const char *args);
 static cmd_result cmd_stop(const char *args);
-static cmd_result cmd_watch(const char *args);
 static cmd_result cmd_refresh(const char *args);
 static cmd_result cmd_delete(const char *args);
 static cmd_result cmd_update(const char *args);
@@ -56,8 +55,6 @@ static const struct command COMMANDS[] = {
                                                                                    cmd_list    },
     { "x", "stop",    "[all]",  "Stop a running game (pick from a menu), or all of them",
                                                                                    cmd_stop    },
-    { "w", "watch",   "<name>", "Wait until Discord adds an exe for a game, then tell you",
-                                                                                   cmd_watch   },
     { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
     { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (offers to stop running games)",
                                                                                    cmd_delete  },
@@ -180,12 +177,6 @@ static cmd_result cmd_find(const char *args)
         spawn_game(choices[pick].path, &opts);
     }
     free(choices);
-    return CMD_CONTINUE;
-}
-
-static cmd_result cmd_watch(const char *args)
-{
-    games_watch(args);
     return CMD_CONTINUE;
 }
 
