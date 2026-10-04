@@ -31,7 +31,6 @@
 #include "commands.h"
 #include "config.h"
 #include "games.h"
-#include "spawn.h"
 #include "update.h"
 
 #include <windows.h>
@@ -42,8 +41,8 @@
 /*
  * Trim leading and trailing whitespace in place; return the trimmed start.
  * A leading UTF-8 byte-order mark is dropped too: PowerShell and some editors
- * put one at the start of piped input, which would otherwise turn the first
- * command into a game name.
+ * put one at the start of piped input, which would otherwise make the first
+ * command unrecognised.
  */
 static char *trim(char *s)
 {

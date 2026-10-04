@@ -244,20 +244,17 @@ static cmd_result cmd_list(const char *args)
     return CMD_CONTINUE;
 }
 
-/* Stop games[from..to) and report each. Returns how many are gone. */
-static size_t stop_games(const struct running_game *games, size_t from, size_t to)
+/* Stop games[from..to) and report each. */
+static void stop_games(const struct running_game *games, size_t from, size_t to)
 {
-    size_t stopped = 0;
     for (size_t i = from; i < to; i++) {
         if (procs_stop(games[i].pid)) {
             printf("Stopped %s (PID %lu).\n", games[i].path, games[i].pid);
-            stopped++;
         } else {
             fprintf(stderr, "error: could not stop %s (PID %lu).\n",
                     games[i].path, games[i].pid);
         }
     }
-    return stopped;
 }
 
 /* Menu text for stop: one row per running game, then "stop all". */

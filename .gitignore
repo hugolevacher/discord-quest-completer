@@ -12,13 +12,6 @@ cmake-install/
 *.obj
 *.out
 
-# Dummy game folders created at runtime by the spawner
-spawned_games/
-
-# Cached copy of Discord's game list (downloaded at runtime)
-detectable_games.json
-detectable_games.json.tmp
-
 # Debug / symbol files
 *.pdb
 *.ilk
@@ -29,10 +22,9 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
-# Games spawned before (remembered for the recent command)
-recent_games.txt
-latest_release.json
-latest_release.json.tmp
+# Everything the tool saves at runtime (game list, recent games, spawned games)
+/Discord Quest Completer data/
 
-# Everything the tool saves at runtime
-/data/
+# Left next to the exe by versions before 1.2.0
+spawned_games/
+detectable_games.json

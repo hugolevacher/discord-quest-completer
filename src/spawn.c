@@ -9,7 +9,6 @@
 
 #include <windows.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 bool spawn_root(char *out, size_t cap)
@@ -183,6 +182,23 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
         return;
     }
 
+    /* Build the command line before copying, so a failure leaves no stray exe. */
+    unsigned long seconds = opts ? opts->seconds : 0;
+    char cmdline[MAX_PATH + 64 + 512];
+    int len = snprintf(cmdline, sizeof(cmdline), "\"%s\" %s", target, CHILD_FLAG);
+    if (seconds > 0) {
+        len += snprintf(cmdline + len, sizeof(cmdline) - (size_t)len, " %s %lu",
+                        CHILD_TIMER_FLAG, seconds);
+    }
+    if (opts && opts->args && opts->args[0]) {
+        int room = (int)sizeof(cmdline) - len;
+        int added = snprintf(cmdline + len, (size_t)room, " %s", opts->args);
+        if (added < 0 || added >= room) {
+            fprintf(stderr, "error: the arguments are too long.\n");
+            return;
+        }
+    }
+
     fs_make_parent_dirs(target);
     if (!CopyFileA(self, target, FALSE)) {
         DWORD err = GetLastError();
@@ -193,23 +209,6 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
                     SPAWN_DIR, rel, (unsigned long)err);
         }
         return;
-    }
-
-    unsigned long seconds = opts ? opts->seconds : 0;
-    char cmdline[MAX_PATH + 64 + 512];
-    int len = snprintf(cmdline, sizeof(cmdline), "\"%s\" %s", target, CHILD_FLAG);
-    if (seconds > 0) {
-        snprintf(cmdline + len, sizeof(cmdline) - (size_t)len, " %s %lu",
-                 CHILD_TIMER_FLAG, seconds);
-        len = (int)strlen(cmdline);
-    }
-    if (opts && opts->args && opts->args[0]) {
-        int room = (int)sizeof(cmdline) - len;
-        int added = snprintf(cmdline + len, (size_t)room, " %s", opts->args);
-        if (added < 0 || added >= room) {
-            fprintf(stderr, "error: the arguments are too long.\n");
-            return;
-        }
     }
 
     STARTUPINFOA si;
