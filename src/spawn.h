@@ -35,8 +35,9 @@ void spawn_split_duration(char *text, unsigned long *seconds);
 /*
  * Spawn one dummy game whose exe path ends with suffix (e.g. "_retail_/wow.exe"):
  * copy this exe to SPAWN_DIR\<suffix>, creating any sub-folders, and launch it
- * in a new, minimized console window. opts may be NULL. Problems are reported;
- * this never exits the program.
+ * in a new console window. It must not start minimized: Discord ignores a
+ * process whose window starts minimized, even if it is restored later.
+ * opts may be NULL. Problems are reported; this never exits the program.
  */
 void spawn_game(const char *suffix, const struct spawn_opts *opts);
 

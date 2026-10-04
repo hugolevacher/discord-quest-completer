@@ -216,8 +216,6 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
     PROCESS_INFORMATION pi;
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_SHOWMINNOACTIVE;  /* in the taskbar, not over your screen */
     ZeroMemory(&pi, sizeof(pi));
 
     if (!CreateProcessA(NULL, cmdline, NULL, NULL, FALSE,
@@ -227,7 +225,7 @@ void spawn_game(const char *suffix, const struct spawn_opts *opts)
         return;
     }
 
-    printf("Started %s\\%s (PID %lu) in a minimized window.\n",
+    printf("Started %s\\%s (PID %lu) in a new window.\n",
            SPAWN_DIR, rel, (unsigned long)pi.dwProcessId);
     if (seconds > 0) {
         char text[32];
