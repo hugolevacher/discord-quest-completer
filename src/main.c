@@ -80,7 +80,7 @@ static bool read_line(char *buf, size_t cap)
 int main(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], CHILD_FLAG) == 0) {
-        return spawn_child_main();
+        return spawn_child_main(argc, argv);
     }
 
     /* Game names in Discord's list are UTF-8 (e.g. "Pokémon"). */

@@ -45,13 +45,19 @@ Use `/` or `\`, and the `.exe` is optional. Folders in the path are created
 for you, because Discord matches the **end of the full path** (the folder and
 the exe name), not just the file name.
 
+### Timer
+
+End a command with a time and the game window closes itself when it is up:
+`spawn _retail_/wow.exe 15m`, `find minecraft 2h`. Times are written like `90s`,
+`15m`, `2h` or `1h30m`.
+
 ### Commands
 
 | Command | What it does |
 |---|---|
 | `h` / `help` | Show the commands |
-| `s` / `spawn <path>` | Spawn a game by its exe path |
-| `f` / `find <name>` | Search Discord's game list, then pick a result to spawn |
+| `s` / `spawn <path> [time]` | Spawn a game by its exe path; add a time to close it later |
+| `f` / `find <name> [time]` | Search Discord's game list, then pick a result to spawn |
 | `r` / `refresh` | Download Discord's game list again now |
 | `d` / `delete` | Delete every spawned game (skips any that are still running) |
 | `c` / `clear` | Clear the screen |

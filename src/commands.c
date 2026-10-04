@@ -35,9 +35,11 @@ struct command {
 
 static const struct command COMMANDS[] = {
     { "h", "help",    NULL,     "Show this help",                                  cmd_help    },
-    { "s", "spawn",   "<path>", "Spawn a game by exe path, e.g. spawn _retail_/wow.exe",
+    { "s", "spawn",   "<path> [time]",
+                                "Spawn a game by exe path; time (15m, 2h) closes it later",
                                                                                    cmd_spawn   },
-    { "f", "find",    "<name>", "Look up a game in Discord's list, then pick one to spawn",
+    { "f", "find",    "<name> [time]",
+                                "Look up a game in Discord's list, then pick one to spawn",
                                                                                    cmd_find    },
     { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
     { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (skips running games)",
@@ -97,7 +99,7 @@ static cmd_result cmd_help(const char *args)
         char label[32];
         snprintf(label, sizeof(label), "%s / %s%s%s", c->key, c->name,
                  c->args ? " " : "", c->args ? c->args : "");
-        printf("  %-18s %s\n", label, c->desc);
+        printf("  %-24s %s\n", label, c->desc);
     }
     printf("\nSpawn paths, for example:\n");
     printf("  spawn _retail_/wow.exe   (folder \"_retail_\", exe \"wow.exe\")\n");
@@ -107,9 +109,28 @@ static cmd_result cmd_help(const char *args)
     return CMD_CONTINUE;
 }
 
+/*
+ * Copy args into text, cutting a trailing duration ("15m") into opts.
+ * False if args is too long for text.
+ */
+static bool split_args(const char *args, char *text, size_t cap, struct spawn_opts *opts)
+{
+    int written = snprintf(text, cap, "%s", args);
+    if (written < 0 || (size_t)written >= cap) {
+        fprintf(stderr, "error: input too long.\n");
+        return false;
+    }
+    spawn_split_duration(text, &opts->seconds);
+    return true;
+}
+
 static cmd_result cmd_spawn(const char *args)
 {
-    spawn_game(args);
+    char text[INPUT_MAX];
+    struct spawn_opts opts = { 0 };
+    if (split_args(args, text, sizeof(text), &opts)) {
+        spawn_game(text, &opts);
+    }
     return CMD_CONTINUE;
 }
 
@@ -123,14 +144,20 @@ static void choice_label(size_t i, char *buf, size_t cap, void *ctx)
 /* Search the list, then let the user pick one of the results to spawn. */
 static cmd_result cmd_find(const char *args)
 {
+    char query[INPUT_MAX];
+    struct spawn_opts opts = { 0 };
+    if (!split_args(args, query, sizeof(query), &opts)) {
+        return CMD_CONTINUE;
+    }
+
     struct game_choice *choices = NULL;
     size_t n = 0;
-    games_find(args, &choices, &n);
+    games_find(query, &choices, &n);
 
     int pick = menu_pick("Pick an exe to spawn (Up/Down to move, Enter to spawn, "
                          "Esc to cancel):", n, choice_label, choices);
     if (pick >= 0) {
-        spawn_game(choices[pick].path);
+        spawn_game(choices[pick].path, &opts);
     }
     free(choices);
     return CMD_CONTINUE;

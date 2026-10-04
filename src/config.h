@@ -16,6 +16,9 @@
 /* Argument that makes a spawned copy run as a dummy "game" process. */
 #define CHILD_FLAG "--child"
 
+/* Follows CHILD_FLAG: the number of seconds after which the copy exits. */
+#define CHILD_TIMER_FLAG "--for"
+
 /* Longest line accepted at the prompt, including the newline. */
 #define INPUT_MAX 512
 

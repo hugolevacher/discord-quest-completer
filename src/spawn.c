@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 bool spawn_root(char *out, size_t cap)
@@ -18,6 +19,26 @@ bool spawn_root(char *out, size_t cap)
     }
     int written = snprintf(out, cap, "%s\\%s", dir, SPAWN_DIR);
     return written >= 0 && (size_t)written < cap;
+}
+
+/* "1h 30m 5s"-style text for a number of seconds (zero parts are left out). */
+static void format_duration(unsigned long seconds, char *out, size_t cap)
+{
+    unsigned long h = seconds / 3600;
+    unsigned long m = seconds / 60 % 60;
+    unsigned long s = seconds % 60;
+    int n = 0;
+    out[0] = '\0';
+    if (h) {
+        n += snprintf(out + n, cap - (size_t)n, "%luh ", h);
+    }
+    if (m) {
+        n += snprintf(out + n, cap - (size_t)n, "%lum ", m);
+    }
+    if (s || n == 0) {
+        n += snprintf(out + n, cap - (size_t)n, "%lus ", s);
+    }
+    out[n - 1] = '\0';  /* drop the trailing space */
 }
 
 /* Replace every '/' with '\' so the input can use either separator. */
@@ -83,7 +104,54 @@ static const char *validate_suffix(const char *s)
     return NULL;
 }
 
-void spawn_game(const char *suffix)
+bool spawn_parse_duration(const char *s, unsigned long *seconds)
+{
+    unsigned long total = 0;
+    if (!*s) {
+        return false;
+    }
+    while (*s) {
+        if (*s < '0' || *s > '9') {
+            return false;
+        }
+        unsigned long n = 0;
+        while (*s >= '0' && *s <= '9') {
+            n = n * 10 + (unsigned long)(*s++ - '0');
+            if (n > 1000000UL) {
+                return false;  /* absurdly long; also keeps the sums from overflowing */
+            }
+        }
+        unsigned long unit;
+        switch (*s++) {
+        case 's': case 'S': unit = 1;    break;
+        case 'm': case 'M': unit = 60;   break;
+        case 'h': case 'H': unit = 3600; break;
+        default:            return false;  /* missing or unknown unit */
+        }
+        total += n * unit;
+    }
+    if (total == 0) {
+        return false;
+    }
+    *seconds = total;
+    return true;
+}
+
+void spawn_split_duration(char *text, unsigned long *seconds)
+{
+    *seconds = 0;
+    char *last = strrchr(text, ' ');
+    unsigned long parsed;
+    if (last && last > text && spawn_parse_duration(last + 1, &parsed)) {
+        *seconds = parsed;
+        while (last > text && last[-1] == ' ') {
+            last--;
+        }
+        *last = '\0';
+    }
+}
+
+void spawn_game(const char *suffix, const struct spawn_opts *opts)
 {
     char rel[MAX_PATH];
     int written = snprintf(rel, sizeof(rel), "%s", suffix);
@@ -131,8 +199,13 @@ void spawn_game(const char *suffix)
         return;
     }
 
-    char cmdline[MAX_PATH + 32];
-    snprintf(cmdline, sizeof(cmdline), "\"%s\" %s", target, CHILD_FLAG);
+    unsigned long seconds = opts ? opts->seconds : 0;
+    char cmdline[MAX_PATH + 64];
+    int len = snprintf(cmdline, sizeof(cmdline), "\"%s\" %s", target, CHILD_FLAG);
+    if (seconds > 0) {
+        snprintf(cmdline + len, sizeof(cmdline) - (size_t)len, " %s %lu",
+                 CHILD_TIMER_FLAG, seconds);
+    }
 
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
@@ -151,13 +224,25 @@ void spawn_game(const char *suffix)
 
     printf("Started %s\\%s (PID %lu) in a minimized window.\n",
            SPAWN_DIR, rel, (unsigned long)pi.dwProcessId);
+    if (seconds > 0) {
+        char text[32];
+        format_duration(seconds, text, sizeof(text));
+        printf("It will close itself after %s.\n", text);
+    }
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
 }
 
-int spawn_child_main(void)
+int spawn_child_main(int argc, char **argv)
 {
+    unsigned long limit = 0;  /* seconds to run for; 0 = until closed */
+    for (int i = 2; i + 1 < argc; i++) {
+        if (strcmp(argv[i], CHILD_TIMER_FLAG) == 0) {
+            limit = strtoul(argv[i + 1], NULL, 10);
+        }
+    }
+
     char self[MAX_PATH];
     GetModuleFileNameA(NULL, self, MAX_PATH);
 
@@ -170,11 +255,19 @@ int spawn_child_main(void)
     printf("Running as process: %s\n", name);
     printf("Full path: %s\n", self);
     printf("PID: %lu\n", (unsigned long)GetCurrentProcessId());
-    printf("This process stays alive until you close this window (or Ctrl+C).\n\n");
+    if (limit > 0) {
+        char text[32];
+        format_duration(limit, text, sizeof(text));
+        printf("This process closes itself after %s (or close this window / Ctrl+C).\n\n",
+               text);
+    } else {
+        printf("This process stays alive until you close this window (or Ctrl+C).\n\n");
+    }
 
-    for (unsigned long seconds = 0;; seconds++) {
+    for (unsigned long seconds = 0; limit == 0 || seconds < limit; seconds++) {
         printf("[%s] alive - %lu s\r", name, seconds);
         fflush(stdout);
         Sleep(1000);
     }
+    return 0;  /* time is up: the window closes with the process */
 }
