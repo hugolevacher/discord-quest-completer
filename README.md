@@ -50,6 +50,17 @@ Use `/` or `\`, and the `.exe` is optional. Folders in the path are created
 for you, because Discord matches the **end of the full path** (the folder and
 the exe name), not just the file name.
 
+### From the command line
+
+Skip the prompt by giving the command directly. Anything that isn't a command
+is a path to spawn:
+
+```
+spawner.exe find minecraft
+spawner.exe _retail_/wow.exe 15m
+spawner.exe list
+```
+
 ### Timer
 
 End a command with a time and the game window closes itself when it is up:

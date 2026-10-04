@@ -77,6 +77,43 @@ static bool read_line(char *buf, size_t cap)
     return true;
 }
 
+/*
+ * Run the command line as a single prompt line, then exit:
+ *   spawner.exe find minecraft 15m      a command, with its arguments
+ *   spawner.exe _retail_/wow.exe 15m    anything else is a path to spawn
+ */
+static int run_once(int argc, char **argv)
+{
+    if (argv[1][0] == '-') {
+        printf("usage: spawner.exe <command> [arguments]\n"
+               "       spawner.exe <game path> [time]\n"
+               "Run without arguments for the interactive prompt; its 'h' lists the "
+               "commands.\n");
+        return 1;
+    }
+
+    char line[INPUT_MAX];
+    size_t len = 0;
+    for (int i = 1; i < argc; i++) {
+        int written = snprintf(line + len, sizeof(line) - len, "%s%s", i > 1 ? " " : "",
+                               argv[i]);
+        if (written < 0 || (size_t)written >= sizeof(line) - len) {
+            fprintf(stderr, "error: input too long (max %u characters).\n",
+                    (unsigned)(sizeof(line) - 2));
+            return 1;
+        }
+        len += (size_t)written;
+    }
+
+    cmd_result result;
+    if (!command_run(line, &result)) {
+        struct spawn_opts opts = { 0 };
+        spawn_split_duration(line, &opts.seconds);
+        spawn_game(line, &opts);
+    }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], CHILD_FLAG) == 0) {
@@ -85,6 +122,12 @@ int main(int argc, char **argv)
 
     /* Game names in Discord's list are UTF-8 (e.g. "Pokémon"). */
     SetConsoleOutputCP(CP_UTF8);
+
+    if (argc > 1) {
+        int status = run_once(argc, argv);
+        games_free();
+        return status;
+    }
 
     printf("%s. Type 'h' for help, 'q' to quit.\n", APP_NAME);
 
