@@ -80,6 +80,7 @@ End a command with a time and the game window closes itself when it is up:
 | `w` / `watch <name>` | Wait until Discord adds an exe for a game that has none, then tell you (Esc stops) |
 | `r` / `refresh` | Download Discord's game list again now |
 | `d` / `delete` | Delete every spawned game (offers to stop the running ones first) |
+| `u` / `update` | Check GitHub for a newer version (also checked once at startup) |
 | `c` / `clear` | Clear the screen |
 | `q` / `quit` | Exit (spawned game windows keep running) |
 

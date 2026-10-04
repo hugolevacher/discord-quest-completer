@@ -13,6 +13,7 @@
 #include "procs.h"
 #include "recent.h"
 #include "spawn.h"
+#include "update.h"
 
 #include <windows.h>
 #include <stdio.h>
@@ -28,6 +29,7 @@ static cmd_result cmd_stop(const char *args);
 static cmd_result cmd_watch(const char *args);
 static cmd_result cmd_refresh(const char *args);
 static cmd_result cmd_delete(const char *args);
+static cmd_result cmd_update(const char *args);
 static cmd_result cmd_clear(const char *args);
 static cmd_result cmd_quit(const char *args);
 
@@ -59,6 +61,7 @@ static const struct command COMMANDS[] = {
     { "r", "refresh", NULL,     "Re-download Discord's game list",                 cmd_refresh },
     { "d", "delete",  NULL,     "Delete the \"" SPAWN_DIR "\" folder (offers to stop running games)",
                                                                                    cmd_delete  },
+    { "u", "update",  NULL,     "Check GitHub for a newer version",                cmd_update  },
     { "c", "clear",   NULL,     "Clear the screen",                                cmd_clear   },
     { "q", "quit",    NULL,     "Exit (spawned game windows keep running)",        cmd_quit    },
 };
@@ -365,6 +368,13 @@ static cmd_result cmd_delete(const char *args)
         printf("%d file(s) are still in use and were skipped - close those "
                "windows and run 'd' again.\n", failed);
     }
+    return CMD_CONTINUE;
+}
+
+static cmd_result cmd_update(const char *args)
+{
+    (void)args;
+    update_report();
     return CMD_CONTINUE;
 }
 

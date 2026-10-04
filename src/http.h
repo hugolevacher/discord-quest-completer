@@ -17,4 +17,8 @@
 bool http_download(const wchar_t *host, const wchar_t *path,
                    const char *dest, size_t *bytes);
 
+/* Same, but problems are not printed (for background checks); just returns false. */
+bool http_download_quiet(const wchar_t *host, const wchar_t *path,
+                         const char *dest, size_t *bytes);
+
 #endif /* HTTP_H */

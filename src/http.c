@@ -7,10 +7,23 @@
 
 #include <windows.h>
 #include <winhttp.h>
+#include <stdarg.h>
 #include <stdio.h>
 
-bool http_download(const wchar_t *host, const wchar_t *path,
-                   const char *dest, size_t *bytes)
+/* Print an error on stderr unless quiet. */
+static void report(bool quiet, const char *fmt, ...)
+{
+    if (quiet) {
+        return;
+    }
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
+
+static bool download(const wchar_t *host, const wchar_t *path,
+                     const char *dest, size_t *bytes, bool quiet)
 {
     bool ok = false;
     HINTERNET session = NULL;
@@ -26,7 +39,7 @@ bool http_download(const wchar_t *host, const wchar_t *path,
 
     int written = snprintf(tmp, sizeof(tmp), "%s.tmp", dest);
     if (written < 0 || (size_t)written >= sizeof(tmp)) {
-        fprintf(stderr, "error: download path is too long.\n");
+        report(quiet, "error: download path is too long.\n");
         return false;
     }
 
@@ -61,13 +74,13 @@ bool http_download(const wchar_t *host, const wchar_t *path,
     }
 
     if (status != 200) {
-        fprintf(stderr, "error: download failed (HTTP %lu).\n", (unsigned long)status);
+        report(quiet, "error: download failed (HTTP %lu).\n", (unsigned long)status);
         goto cleanup;
     }
 
     out = fopen(tmp, "wb");
     if (!out) {
-        fprintf(stderr, "error: cannot write %s.\n", tmp);
+        report(quiet, "error: cannot write %s.\n", tmp);
         goto cleanup;
     }
 
@@ -80,7 +93,7 @@ bool http_download(const wchar_t *host, const wchar_t *path,
             break;  /* end of body */
         }
         if (fwrite(buf, 1, got, out) != got) {
-            fprintf(stderr, "error: cannot write %s.\n", tmp);
+            report(quiet, "error: cannot write %s.\n", tmp);
             goto cleanup;
         }
         *bytes += got;
@@ -89,12 +102,12 @@ bool http_download(const wchar_t *host, const wchar_t *path,
     int close_failed = fclose(out);
     out = NULL;
     if (close_failed) {
-        fprintf(stderr, "error: cannot write %s.\n", tmp);
+        report(quiet, "error: cannot write %s.\n", tmp);
         goto cleanup;
     }
 
     if (!MoveFileExA(tmp, dest, MOVEFILE_REPLACE_EXISTING)) {
-        fprintf(stderr, "error: cannot replace %s (Windows error %lu).\n",
+        report(quiet, "error: cannot replace %s (Windows error %lu).\n",
                 dest, (unsigned long)GetLastError());
         goto cleanup;
     }
@@ -103,7 +116,7 @@ bool http_download(const wchar_t *host, const wchar_t *path,
     goto cleanup;
 
 winhttp_error:
-    fprintf(stderr, "error: download failed (Windows error %lu) - "
+    report(quiet, "error: download failed (Windows error %lu) - "
                     "check your internet connection.\n",
             (unsigned long)GetLastError());
 
@@ -124,4 +137,16 @@ cleanup:
         WinHttpCloseHandle(session);
     }
     return ok;
+}
+
+bool http_download(const wchar_t *host, const wchar_t *path,
+                   const char *dest, size_t *bytes)
+{
+    return download(host, path, dest, bytes, false);
+}
+
+bool http_download_quiet(const wchar_t *host, const wchar_t *path,
+                         const char *dest, size_t *bytes)
+{
+    return download(host, path, dest, bytes, true);
 }

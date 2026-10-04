@@ -31,3 +31,5 @@ desktop.ini
 
 # Games spawned before (remembered for the recent command)
 recent_games.txt
+latest_release.json
+latest_release.json.tmp

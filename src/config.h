@@ -6,6 +6,16 @@
 
 #define APP_NAME "Game process spawner"
 
+/* This build's version; compared with the latest GitHub release tag (vX.Y.Z). */
+#ifndef APP_VERSION
+#define APP_VERSION "1.0.0"
+#endif
+
+/* Where the update check looks for the latest release. */
+#define UPDATE_HOST L"api.github.com"
+#define UPDATE_PATH L"/repos/hugolevacher/discord-quest-completer/releases/latest"
+#define UPDATE_CHECK_FILE "latest_release.json"
+
 /*
  * Every spawned exe and its folder structure is created under this folder,
  * next to the spawner exe (auto-created if missing), so cleanup is just

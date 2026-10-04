@@ -27,6 +27,7 @@
 #include "config.h"
 #include "games.h"
 #include "spawn.h"
+#include "update.h"
 
 #include <windows.h>
 #include <stdbool.h>
@@ -129,10 +130,12 @@ int main(int argc, char **argv)
         return status;
     }
 
-    printf("%s. Type 'h' for help, 'q' to quit.\n", APP_NAME);
+    printf("%s v%s. Type 'h' for help, 'q' to quit.\n", APP_NAME, APP_VERSION);
+    update_check_start();
 
     char line[INPUT_MAX];
     for (;;) {
+        update_announce();
         printf("\n> ");
         fflush(stdout);
 
