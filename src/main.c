@@ -31,6 +31,7 @@
 #include "commands.h"
 #include "config.h"
 #include "games.h"
+#include "gui.h"
 #include "update.h"
 
 #include <windows.h>
@@ -92,7 +93,9 @@ static int run_once(int argc, char **argv)
 {
     if (argv[1][0] == '-') {
         printf("usage: spawner.exe <command> [arguments]\n"
-               "Run without arguments for the interactive prompt; 'h' lists the "
+               "       spawner.exe " GUI_FLAG "   open the window\n"
+               "       spawner.exe " CLI_FLAG "   open the prompt\n"
+               "Run from a terminal without arguments for the prompt; 'h' lists the "
                "commands.\n");
         return 1;
     }
@@ -118,16 +121,50 @@ static int run_once(int argc, char **argv)
     return 0;
 }
 
+/*
+ * True when the exe was double-clicked rather than run from a terminal: Windows
+ * then gives it a console of its own (no other process attached to it), and
+ * its input is that console rather than a pipe (e.g. an IDE's run window).
+ */
+static bool started_by_double_click(void)
+{
+    DWORD pids[2];
+    DWORD mode;
+    return GetConsoleProcessList(pids, 2) == 1 &&
+           GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode);
+}
+
+/* Drop the console Windows opened for us, so only the window shows. */
+static int run_gui(void)
+{
+    HWND console = GetConsoleWindow();
+    if (console) {
+        ShowWindow(console, SW_HIDE);
+    }
+    FreeConsole();
+    return gui_main();
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], CHILD_FLAG) == 0) {
         return child_main(argc, argv);
     }
 
+    /*
+     * Double-clicked: the window. From a terminal: the prompt, or the command
+     * given on the command line. --gui and --cli force either one.
+     */
+    bool force_cli = argc == 2 && strcmp(argv[1], CLI_FLAG) == 0;
+    if ((argc == 2 && strcmp(argv[1], GUI_FLAG) == 0) ||
+        (argc == 1 && started_by_double_click())) {
+        return run_gui();
+    }
+
     /* Game names in Discord's list are UTF-8 (e.g. "Pokémon"). */
     SetConsoleOutputCP(CP_UTF8);
 
-    if (argc > 1) {
+    if (argc > 1 && !force_cli) {
         int status = run_once(argc, argv);
         games_free();
         return status;

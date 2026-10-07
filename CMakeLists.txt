@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.3)
-project(Discord_quest C)
+project(Discord_quest C RC)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -14,15 +14,17 @@ add_executable(Discord_quest
         src/commands.c
         src/spawn.c
         src/child.c
+        src/gui.c
         src/games.c
         src/procs.c
         src/recent.c
         src/update.c
         src/menu.c
         src/http.c
-        src/fs.c)
+        src/fs.c
+        res/app.rc)
 
-target_link_libraries(Discord_quest PRIVATE cjson winhttp user32 gdi32)
+target_link_libraries(Discord_quest PRIVATE cjson winhttp user32 gdi32 comctl32 shell32)
 target_compile_definitions(Discord_quest PRIVATE WIN32_LEAN_AND_MEAN)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")

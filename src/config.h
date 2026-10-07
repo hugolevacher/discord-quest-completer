@@ -30,6 +30,10 @@
  */
 #define SPAWN_DIR "spawned_games"
 
+/* Force the window or the prompt, whichever way the exe was started. */
+#define GUI_FLAG "--gui"
+#define CLI_FLAG "--cli"
+
 /* Argument that makes a spawned copy run as a dummy "game" process. */
 #define CHILD_FLAG "--child"
 
