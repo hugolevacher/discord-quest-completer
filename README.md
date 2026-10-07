@@ -11,19 +11,25 @@ no install needed.
 
 ## Quick start
 
-1. Run `spawner.exe`.
-2. Type `find <game>`, e.g. `find world of warcraft`.
-3. Pick an exe with the arrow keys and press **Enter**.
+1. Double-click `spawner.exe`.
+2. Search for the game your quest is about, e.g. `world of warcraft`.
+3. Pick an exe and press **Spawn**. Optionally pick when it should close.
 4. The game's window opens minimized in the taskbar. Leave it running until
    the quest completes.
 
 To **stream** a game, restore its window from the taskbar and pick it in
 Discord's Go Live.
 
-If `find` says a game has no exe, Discord can't detect it by process, so this
-tool can't complete its quest.
+If a game shows "Discord can't detect this game", it has no exe in Discord's
+list, so this tool can't complete its quest.
 
-## Commands
+## Command line
+
+Run `spawner.exe` from a terminal for a prompt with the same features, or give
+a command directly: `spawner.exe spawn _retail_/wow.exe 15m`. `--gui` and
+`--cli` force the window or the prompt.
+
+### Commands
 
 | Command | What it does |
 |---|---|
@@ -41,8 +47,6 @@ tool can't complete its quest.
 
 - **Time:** add `90s`, `15m`, `2h` or `1h30m` and the game closes itself when
   it's up, e.g. `find minecraft 15m`.
-- **Command line:** run a command directly, e.g.
-  `spawner.exe spawn _retail_/wow.exe 15m`.
 - Games Discord detects by their launch arguments (Minecraft, Team Fortress 2...)
   are started with those arguments.
 
