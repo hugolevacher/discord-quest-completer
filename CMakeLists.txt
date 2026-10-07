@@ -10,6 +10,7 @@ target_include_directories(cjson PUBLIC third_party/cjson)
 
 add_executable(Discord_quest
         src/main.c
+        src/msg.c
         src/commands.c
         src/spawn.c
         src/child.c

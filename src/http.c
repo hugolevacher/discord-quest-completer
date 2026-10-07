@@ -4,22 +4,28 @@
 #include "http.h"
 
 #include "config.h"
+#include "msg.h"
 
 #include <windows.h>
 #include <winhttp.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-/* Print an error on stderr unless quiet. */
+#define HTTP_CHUNK (64 * 1024)  /* bytes read per call */
+
+/* Report an error through msg unless quiet. */
 static void report(bool quiet, const char *fmt, ...)
 {
     if (quiet) {
         return;
     }
+    char text[512];
     va_list args;
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    vsnprintf(text, sizeof(text), fmt, args);
     va_end(args);
+    msg_error("%s", text);
 }
 
 static bool download(const wchar_t *host, const wchar_t *path,
@@ -32,14 +38,19 @@ static bool download(const wchar_t *host, const wchar_t *path,
     FILE *out = NULL;
     DWORD status = 0;
     DWORD status_size = sizeof(status);
-    static char buf[64 * 1024];
+    char *buf = NULL;  /* per call, so two downloads can run at once */
     char tmp[MAX_PATH];
 
     *bytes = 0;
 
     int written = snprintf(tmp, sizeof(tmp), "%s.tmp", dest);
     if (written < 0 || (size_t)written >= sizeof(tmp)) {
-        report(quiet, "error: download path is too long.\n");
+        report(quiet, "Download path is too long.");
+        return false;
+    }
+    buf = malloc(HTTP_CHUNK);
+    if (!buf) {
+        report(quiet, "Out of memory.");
         return false;
     }
 
@@ -74,26 +85,26 @@ static bool download(const wchar_t *host, const wchar_t *path,
     }
 
     if (status != 200) {
-        report(quiet, "error: download failed (HTTP %lu).\n", (unsigned long)status);
+        report(quiet, "Download failed (HTTP %lu).", (unsigned long)status);
         goto cleanup;
     }
 
     out = fopen(tmp, "wb");
     if (!out) {
-        report(quiet, "error: cannot write %s.\n", tmp);
+        report(quiet, "Cannot write %s.", tmp);
         goto cleanup;
     }
 
     for (;;) {
         DWORD got = 0;
-        if (!WinHttpReadData(request, buf, (DWORD)sizeof(buf), &got)) {
+        if (!WinHttpReadData(request, buf, (DWORD)HTTP_CHUNK, &got)) {
             goto winhttp_error;
         }
         if (got == 0) {
             break;  /* end of body */
         }
         if (fwrite(buf, 1, got, out) != got) {
-            report(quiet, "error: cannot write %s.\n", tmp);
+            report(quiet, "Cannot write %s.", tmp);
             goto cleanup;
         }
         *bytes += got;
@@ -102,12 +113,12 @@ static bool download(const wchar_t *host, const wchar_t *path,
     int close_failed = fclose(out);
     out = NULL;
     if (close_failed) {
-        report(quiet, "error: cannot write %s.\n", tmp);
+        report(quiet, "Cannot write %s.", tmp);
         goto cleanup;
     }
 
     if (!MoveFileExA(tmp, dest, MOVEFILE_REPLACE_EXISTING)) {
-        report(quiet, "error: cannot replace %s (Windows error %lu).\n",
+        report(quiet, "Cannot replace %s (Windows error %lu).",
                 dest, (unsigned long)GetLastError());
         goto cleanup;
     }
@@ -116,11 +127,12 @@ static bool download(const wchar_t *host, const wchar_t *path,
     goto cleanup;
 
 winhttp_error:
-    report(quiet, "error: download failed (Windows error %lu) - "
-                    "check your internet connection.\n",
+    report(quiet, "Download failed (Windows error %lu) - "
+                    "check your internet connection.",
             (unsigned long)GetLastError());
 
 cleanup:
+    free(buf);
     if (out) {
         fclose(out);
     }

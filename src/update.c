@@ -3,7 +3,7 @@
  *
  * Asks GitHub's API for the latest release and compares its tag ("v1.2.3")
  * with APP_VERSION. The check runs on a thread so startup never waits on the
- * network; the thread prints nothing, the main thread reports its result.
+ * network. Nothing here prints; the interface shows the result.
  */
 #include "update.h"
 
@@ -19,22 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum check_status {
-    CHECK_FAILED,
-    CHECK_UP_TO_DATE,
-    CHECK_NEWER,
-};
-
-struct check_result {
-    enum check_status status;
-    char tag[64];   /* the latest release's tag, e.g. "v1.2.0" */
-    char url[256];  /* its page on GitHub */
-};
-
 static HANDLE g_thread;  /* the running background check, or NULL */
-static struct check_result g_result;
+static struct update_info g_result;
 static bool g_have_result;
-static bool g_announced;
 
 /* Read "v1.2.3" (or "1.2") into three numbers; missing parts are 0. */
 static void parse_version(const char *s, int v[3])
@@ -60,10 +47,10 @@ static bool is_newer(const char *a, const char *b)
     return false;
 }
 
-/* Ask GitHub for the latest release. Quiet: any problem is CHECK_FAILED. */
-static struct check_result fetch_latest(void)
+/* Ask GitHub for the latest release. Quiet: any problem is UPDATE_FAILED. */
+static struct update_info fetch_latest(void)
 {
-    struct check_result r = { CHECK_FAILED, "", "" };
+    struct update_info r = { UPDATE_FAILED, "", "" };
 
     char file[MAX_PATH];
     if (!fs_data_path(file, sizeof(file), UPDATE_CHECK_FILE)) {
@@ -87,7 +74,7 @@ static struct check_result fetch_latest(void)
     if (cJSON_IsString(tag)) {
         snprintf(r.tag, sizeof(r.tag), "%s", tag->valuestring);
         snprintf(r.url, sizeof(r.url), "%s", cJSON_IsString(url) ? url->valuestring : "");
-        r.status = is_newer(r.tag, APP_VERSION) ? CHECK_NEWER : CHECK_UP_TO_DATE;
+        r.status = is_newer(r.tag, APP_VERSION) ? UPDATE_NEWER : UPDATE_UP_TO_DATE;
     }
     cJSON_Delete(json);
     return r;
@@ -105,7 +92,7 @@ void update_check_start(void)
     g_thread = CreateThread(NULL, 0, check_thread, NULL, 0, NULL);
 }
 
-/* Collect the background check's result if it has finished. */
+/* Collect the background check's result if it has finished (or wait for it). */
 static void collect(bool wait)
 {
     if (g_thread && WaitForSingleObject(g_thread, wait ? INFINITE : 0) == WAIT_OBJECT_0) {
@@ -115,42 +102,21 @@ static void collect(bool wait)
     }
 }
 
-static void print_newer(const struct check_result *r)
-{
-    printf("A newer version is available: %s (you have v%s).\n", r->tag, APP_VERSION);
-    if (r->url[0]) {
-        printf("Download it at %s\n", r->url);
-    }
-}
-
-void update_announce(void)
+bool update_poll(struct update_info *info)
 {
     collect(false);
-    if (g_have_result && !g_announced && g_result.status == CHECK_NEWER) {
-        g_announced = true;
-        printf("\n");
-        print_newer(&g_result);
+    if (g_have_result) {
+        *info = g_result;
     }
+    return g_have_result;
 }
 
-void update_report(void)
+void update_check_now(struct update_info *info)
 {
     collect(true);
-    if (!g_have_result || g_result.status == CHECK_FAILED) {
+    if (!g_have_result || g_result.status == UPDATE_FAILED) {
         g_result = fetch_latest();  /* never started, or failed: try once more */
         g_have_result = true;
     }
-
-    switch (g_result.status) {
-    case CHECK_NEWER:
-        g_announced = true;
-        print_newer(&g_result);
-        break;
-    case CHECK_UP_TO_DATE:
-        printf("You are up to date (v%s).\n", APP_VERSION);
-        break;
-    case CHECK_FAILED:
-        printf("Could not check for updates - check your internet connection.\n");
-        break;
-    }
+    *info = g_result;
 }

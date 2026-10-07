@@ -18,15 +18,29 @@ struct game_choice {
     bool launcher;             /* Discord marks this exe as the game's launcher */
 };
 
+/* One game found by games_search. Its strings live until the list is refreshed or freed. */
+struct game_result {
+    const char *id;            /* Discord application id */
+    const char *name;
+    const char *aliases;       /* other names, '\n'-separated; "" if none */
+    const char *stores;        /* e.g. "steam 3405690, epic"; "" if none */
+    struct game_choice *exes;  /* the exes Discord detects it by */
+    size_t n_exes;             /* 0: Discord can't detect this game by its process */
+};
+
 /*
- * Print the games whose name or alias contains query (case-insensitive), best
- * matches first, with the exe paths to spawn. Loads the list on first use,
- * downloading it if the cache is missing or older than a day.
+ * Find the games whose name, alias or exe path contains query (ignoring case),
+ * best matches first. Loads the list on first use, downloading it if the cache
+ * is missing or older than a day; this can take a few seconds.
  *
- * Every exe of the printed games is returned in *choices (an array the caller
- * must free(), NULL if there are none) with its length in *n_choices.
+ * Stores up to max results in *results (free with games_results_free; NULL if
+ * none) and how many games matched in all in *total. Returns false, after
+ * reporting why through msg, if the list couldn't be loaded.
  */
-void games_find(const char *query, struct game_choice **choices, size_t *n_choices);
+bool games_search(const char *query, size_t max, struct game_result **results,
+                  size_t *n_results, size_t *total);
+
+void games_results_free(struct game_result *results, size_t n);
 
 /* Download the list now, replacing the cached copy. */
 bool games_refresh(void);

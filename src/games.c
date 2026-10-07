@@ -10,6 +10,7 @@
 #include "config.h"
 #include "fs.h"
 #include "http.h"
+#include "msg.h"
 
 #include "cJSON.h"
 
@@ -255,7 +256,7 @@ static bool parse_list(const char *text)
     cJSON *root = cJSON_Parse(text);
     if (!cJSON_IsArray(root)) {
         cJSON_Delete(root);
-        fprintf(stderr, "error: the game list is not valid JSON - run 'refresh'.\n");
+        msg_error("The game list is damaged - refresh it.");
         return false;
     }
 
@@ -263,7 +264,7 @@ static bool parse_list(const char *text)
     struct game *games = calloc(total ? total : 1, sizeof(*games));
     if (!games) {
         cJSON_Delete(root);
-        fprintf(stderr, "error: out of memory loading the game list.\n");
+        msg_error("Out of memory loading the game list.");
         return false;
     }
 
@@ -286,7 +287,7 @@ static bool load_file(const char *path)
 {
     char *text = fs_read_file(path, NULL);
     if (!text) {
-        fprintf(stderr, "error: cannot read %s.\n", path);
+        msg_error("Cannot read %s.", path);
         return false;
     }
     bool ok = parse_list(text);
@@ -302,14 +303,13 @@ static bool cache_path(char *out, size_t cap)
 
 static bool download(const char *path)
 {
-    printf("Downloading Discord's game list...\n");
-    fflush(stdout);
+    msg_info("Downloading Discord's game list...");
 
     size_t bytes;
     if (!http_download(GAMES_HOST, GAMES_PATH, path, &bytes)) {
         return false;
     }
-    printf("Downloaded %.1f MB.\n", (double)bytes / (1024.0 * 1024.0));
+    msg_info("Downloaded %.1f MB.", (double)bytes / (1024.0 * 1024.0));
     return true;
 }
 
@@ -325,7 +325,7 @@ static bool ensure_loaded(void)
 
     char path[MAX_PATH];
     if (!cache_path(path, sizeof(path))) {
-        fprintf(stderr, "error: cannot locate the game list cache.\n");
+        msg_error("Cannot locate the game list cache.");
         return false;
     }
 
@@ -336,7 +336,7 @@ static bool ensure_loaded(void)
             if (!cached) {
                 return false;
             }
-            fprintf(stderr, "Using the saved list from %lu hour(s) ago instead.\n",
+            msg_info("Using the saved list from %lu hour(s) ago instead.",
                     (unsigned long)(age / 3600));
         }
     }
@@ -347,13 +347,13 @@ bool games_refresh(void)
 {
     char path[MAX_PATH];
     if (!cache_path(path, sizeof(path))) {
-        fprintf(stderr, "error: cannot locate the game list cache.\n");
+        msg_error("Cannot locate the game list cache.");
         return false;
     }
     if (!download(path) || !load_file(path)) {
         return false;
     }
-    printf("%lu games loaded.\n", (unsigned long)g_count);
+    msg_info("%lu games loaded.", (unsigned long)g_count);
     return true;
 }
 
@@ -455,45 +455,6 @@ static int compare_matches(const void *a, const void *b)
     return _stricmp(x->game->name, y->game->name);
 }
 
-#define LABEL_WIDTH 13  /* longest label ("Also called:") plus a space */
-
-/* Print a labelled field whose '\n'-separated values go one per line. */
-static void print_lines(const char *label, const char *lines)
-{
-    printf("  %-*s", LABEL_WIDTH, label);
-    bool first = true;
-    const char *p = lines;
-    while (*p) {
-        const char *end = strchr(p, '\n');
-        int len = end ? (int)(end - p) : (int)strlen(p);
-        printf("%*s%.*s\n", first ? 0 : LABEL_WIDTH + 2, "", len, p);
-        first = false;
-        if (!end) {
-            break;
-        }
-        p = end + 1;
-    }
-}
-
-static void print_game(const struct game *g)
-{
-    printf("\n%s\n", g->name);
-    if (*g->exes) {
-        print_lines("Spawn as:", g->exes);
-    } else {
-        printf("  %-*s(none - Discord can't detect this game by its process,\n"
-               "  %-*s so spawning it won't work)\n",
-               LABEL_WIDTH, "Spawn as:", LABEL_WIDTH, "");
-    }
-    if (*g->aliases) {
-        print_lines("Also called:", g->aliases);
-    }
-    if (*g->stores) {
-        printf("  %-*s%s\n", LABEL_WIDTH, "Stores:", g->stores);
-    }
-    printf("  %-*s%s\n", LABEL_WIDTH, "Discord ID:", g->id);
-}
-
 /* Number of '\n'-separated values in s ("" has none). */
 static size_t count_lines(const char *s)
 {
@@ -507,71 +468,70 @@ static size_t count_lines(const char *s)
     return n;
 }
 
-/* Gather every exe of the shown games into a malloc'd array of choices. */
-static void collect_choices(const struct match *matches, size_t shown,
-                            struct game_choice **out, size_t *n_out)
+/* Fill r from g, taking its exes apart into spawnable choices. */
+static bool make_result(const struct game *g, struct game_result *r)
 {
-    size_t total = 0;
-    for (size_t i = 0; i < shown; i++) {
-        total += count_lines(matches[i].game->exes);
-    }
+    r->id = g->id;
+    r->name = g->name;
+    r->aliases = g->aliases;
+    r->stores = g->stores;
+    r->exes = NULL;
+    r->n_exes = 0;
+
+    size_t total = count_lines(g->exes);
     if (total == 0) {
-        return;
+        return true;
+    }
+    r->exes = malloc(total * sizeof(*r->exes));
+    if (!r->exes) {
+        return false;
     }
 
-    struct game_choice *list = malloc(total * sizeof(*list));
-    if (!list) {
-        return;  /* the results are already printed; just no menu */
-    }
+    const char *p = g->exes;
+    while (*p) {
+        const char *end = strchr(p, '\n');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
 
-    size_t n = 0;
-    for (size_t i = 0; i < shown; i++) {
-        const struct game *g = matches[i].game;
-        const char *p = g->exes;
-        while (*p) {
-            const char *end = strchr(p, '\n');
-            size_t len = end ? (size_t)(end - p) : strlen(p);
-
-            struct exe_ref exe = parse_exe(p, len);
-            if (exe.path_len < sizeof(list[n].path) && exe.args_len < sizeof(list[n].args)) {
-                memcpy(list[n].path, exe.path, exe.path_len);
-                list[n].path[exe.path_len] = '\0';
-                if (exe.args) {
-                    memcpy(list[n].args, exe.args, exe.args_len);
-                }
-                list[n].args[exe.args_len] = '\0';
-                list[n].game = g->name;
-                list[n].launcher = exe.launcher;
-                n++;
+        struct exe_ref exe = parse_exe(p, len);
+        struct game_choice *c = &r->exes[r->n_exes];
+        if (exe.path_len < sizeof(c->path) && exe.args_len < sizeof(c->args)) {
+            memcpy(c->path, exe.path, exe.path_len);
+            c->path[exe.path_len] = '\0';
+            if (exe.args) {
+                memcpy(c->args, exe.args, exe.args_len);
             }
-            if (!end) {
-                break;
-            }
-            p = end + 1;
+            c->args[exe.args_len] = '\0';
+            c->game = g->name;
+            c->launcher = exe.launcher;
+            r->n_exes++;
         }
+        if (!end) {
+            break;
+        }
+        p = end + 1;
     }
-
-    *out = list;
-    *n_out = n;
+    return true;
 }
 
-void games_find(const char *query, struct game_choice **choices, size_t *n_choices)
+bool games_search(const char *query, size_t max, struct game_result **results,
+                  size_t *n_results, size_t *total)
 {
-    *choices = NULL;
-    *n_choices = 0;
+    *results = NULL;
+    *n_results = 0;
+    *total = 0;
 
     if (!ensure_loaded()) {
-        return;
+        return false;
     }
     if (g_count == 0) {
-        printf("The game list is empty - try 'refresh'.\n");
-        return;
+        msg_error("The game list is empty - refresh it.");
+        return false;
     }
 
     struct match *matches = malloc(g_count * sizeof(*matches));
     if (!matches) {
-        fprintf(stderr, "error: out of memory.\n");
-        return;
+        msg_error("Out of memory.");
+        return false;
     }
 
     size_t qn = strlen(query);
@@ -584,20 +544,36 @@ void games_find(const char *query, struct game_choice **choices, size_t *n_choic
             n++;
         }
     }
+    qsort(matches, n, sizeof(*matches), compare_matches);
+    *total = n;
 
-    if (n == 0) {
-        printf("No game matching \"%s\".\n", query);
-    } else {
-        qsort(matches, n, sizeof(*matches), compare_matches);
-        size_t shown = n < FIND_MAX_RESULTS ? n : FIND_MAX_RESULTS;
-        for (size_t i = 0; i < shown; i++) {
-            print_game(matches[i].game);
+    size_t shown = n < max ? n : max;
+    bool ok = true;
+    if (shown > 0) {
+        struct game_result *list = calloc(shown, sizeof(*list));
+        ok = list != NULL;
+        for (size_t i = 0; ok && i < shown; i++) {
+            ok = make_result(matches[i].game, &list[i]);
         }
-        if (n > shown) {
-            printf("\n...and %lu more. Try a more specific name.\n",
-                   (unsigned long)(n - shown));
+        if (ok) {
+            *results = list;
+            *n_results = shown;
+        } else {
+            games_results_free(list, shown);
+            msg_error("Out of memory.");
         }
-        collect_choices(matches, shown, choices, n_choices);
     }
     free(matches);
+    return ok;
+}
+
+void games_results_free(struct game_result *results, size_t n)
+{
+    if (!results) {
+        return;
+    }
+    for (size_t i = 0; i < n; i++) {
+        free(results[i].exes);
+    }
+    free(results);
 }

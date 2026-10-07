@@ -36,8 +36,9 @@ void spawn_split_duration(char *text, unsigned long *seconds);
  * Spawn one dummy game whose exe path ends with suffix (e.g. "_retail_/wow.exe"):
  * copy this exe to SPAWN_DIR\<suffix>, creating any sub-folders, and launch it
  * without a console; the copy opens its own game window (see child.c).
- * opts may be NULL. Problems are reported; this never exits the program.
+ * opts may be NULL. Reports the outcome through msg and returns whether the
+ * game started.
  */
-void spawn_game(const char *suffix, const struct spawn_opts *opts);
+bool spawn_game(const char *suffix, const struct spawn_opts *opts);
 
 #endif /* SPAWN_H */

@@ -157,7 +157,50 @@ static void choice_label(size_t i, char *buf, size_t cap, void *ctx)
              c->args[0] ? ")" : "", c->launcher ? " [launcher]" : "", c->game);
 }
 
-/* Search the list, then let the user pick one of the results to spawn. */
+#define LABEL_WIDTH 13  /* longest label ("Also called:") plus a space */
+
+/* Print a labelled field whose '\n'-separated values go one per line. */
+static void print_lines(const char *label, const char *lines)
+{
+    printf("  %-*s", LABEL_WIDTH, label);
+    bool first = true;
+    const char *p = lines;
+    while (*p) {
+        const char *end = strchr(p, '\n');
+        int len = end ? (int)(end - p) : (int)strlen(p);
+        printf("%*s%.*s\n", first ? 0 : LABEL_WIDTH + 2, "", len, p);
+        first = false;
+        if (!end) {
+            break;
+        }
+        p = end + 1;
+    }
+}
+
+static void print_game(const struct game_result *g)
+{
+    printf("\n%s\n", g->name);
+    if (g->n_exes == 0) {
+        printf("  %-*s(none - Discord can't detect this game by its process,\n"
+               "  %-*s so spawning it won't work)\n",
+               LABEL_WIDTH, "Spawn as:", LABEL_WIDTH, "");
+    }
+    for (size_t i = 0; i < g->n_exes; i++) {
+        const struct game_choice *c = &g->exes[i];
+        printf("  %-*s%s%s%s%s%s\n", LABEL_WIDTH, i == 0 ? "Spawn as:" : "", c->path,
+               c->args[0] ? "  (args: " : "", c->args, c->args[0] ? ")" : "",
+               c->launcher ? "  [launcher]" : "");
+    }
+    if (*g->aliases) {
+        print_lines("Also called:", g->aliases);
+    }
+    if (*g->stores) {
+        printf("  %-*s%s\n", LABEL_WIDTH, "Stores:", g->stores);
+    }
+    printf("  %-*s%s\n", LABEL_WIDTH, "Discord ID:", g->id);
+}
+
+/* Search the list, then let the user pick one of the results' exes to spawn. */
 static cmd_result cmd_find(const char *args)
 {
     char query[INPUT_MAX];
@@ -166,17 +209,43 @@ static cmd_result cmd_find(const char *args)
         return CMD_CONTINUE;
     }
 
-    struct game_choice *choices = NULL;
-    size_t n = 0;
-    games_find(query, &choices, &n);
-
-    int pick = menu_pick("Pick an exe to spawn (Up/Down to move, Enter to spawn, "
-                         "Esc to cancel):", n, choice_label, choices);
-    if (pick >= 0) {
-        opts.args = choices[pick].args;
-        spawn_game(choices[pick].path, &opts);
+    struct game_result *results;
+    size_t n, total;
+    if (!games_search(query, FIND_MAX_RESULTS, &results, &n, &total)) {
+        return CMD_CONTINUE;
     }
-    free(choices);
+    if (n == 0) {
+        printf("No game matching \"%s\".\n", query);
+        return CMD_CONTINUE;
+    }
+
+    size_t n_choices = 0;
+    for (size_t i = 0; i < n; i++) {
+        print_game(&results[i]);
+        n_choices += results[i].n_exes;
+    }
+    if (total > n) {
+        printf("\n...and %lu more. Try a more specific name.\n", (unsigned long)(total - n));
+    }
+
+    /* One menu row per exe, across all the games shown. */
+    struct game_choice *choices = n_choices ? malloc(n_choices * sizeof(*choices)) : NULL;
+    if (choices) {
+        size_t k = 0;
+        for (size_t i = 0; i < n; i++) {
+            for (size_t j = 0; j < results[i].n_exes; j++) {
+                choices[k++] = results[i].exes[j];
+            }
+        }
+        int pick = menu_pick("Pick an exe to spawn (Up/Down to move, Enter to spawn, "
+                             "Esc to cancel):", n_choices, choice_label, choices);
+        if (pick >= 0) {
+            opts.args = choices[pick].args;
+            spawn_game(choices[pick].path, &opts);
+        }
+        free(choices);
+    }
+    games_results_free(results, n);
     return CMD_CONTINUE;
 }
 
@@ -359,10 +428,44 @@ static cmd_result cmd_delete(const char *args)
     return CMD_CONTINUE;
 }
 
+static void print_newer(const struct update_info *info)
+{
+    printf("A newer version is available: %s (you have v%s).\n", info->tag, APP_VERSION);
+    if (info->url[0]) {
+        printf("Download it at %s\n", info->url);
+    }
+}
+
+static bool g_update_announced;
+
+void command_update_notice(void)
+{
+    struct update_info info;
+    if (!g_update_announced && update_poll(&info) && info.status == UPDATE_NEWER) {
+        g_update_announced = true;
+        printf("\n");
+        print_newer(&info);
+    }
+}
+
 static cmd_result cmd_update(const char *args)
 {
     (void)args;
-    update_report();
+
+    struct update_info info;
+    update_check_now(&info);
+    switch (info.status) {
+    case UPDATE_NEWER:
+        g_update_announced = true;
+        print_newer(&info);
+        break;
+    case UPDATE_UP_TO_DATE:
+        printf("You are up to date (v%s).\n", APP_VERSION);
+        break;
+    case UPDATE_FAILED:
+        printf("Could not check for updates - check your internet connection.\n");
+        break;
+    }
     return CMD_CONTINUE;
 }
 

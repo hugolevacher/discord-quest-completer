@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 
     char line[INPUT_MAX];
     for (;;) {
-        update_announce();
+        command_update_notice();
         printf("\n> ");
         fflush(stdout);
 
