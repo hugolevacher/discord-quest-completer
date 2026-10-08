@@ -13,7 +13,7 @@ no install needed.
 
 1. Double-click `spawner.exe`.
 2. Search for the game your quest is about, e.g. `world of warcraft`.
-3. Pick an exe and press **Spawn**. Optionally pick when it should close.
+3. Pick an exe and click **Start game**. Optionally pick when it should close.
 4. The game's window opens minimized in the taskbar. Leave it running until
    the quest completes.
 

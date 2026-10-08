@@ -98,7 +98,9 @@ static struct {
     HWND running, stop, stop_all, del, tip, status;
     HWND labels[3];
     HFONT font;
+    HFONT bold_font;        /* for the Start game button */
     int dpi;
+    bool start_is_default;  /* Enter starts the selected game rather than searching */
 
     struct row *rows;  /* what the results list shows */
     size_t n_rows;
@@ -214,6 +216,28 @@ static const struct row *selected_row(void)
     return i >= 0 && (size_t)i < g.n_rows ? &g.rows[i] : NULL;
 }
 
+/* True if the spawned-games folder holds anything to delete. */
+static bool have_spawned_games(void)
+{
+    char root[MAX_PATH];
+    char pattern[MAX_PATH];
+    if (!spawn_root(root, sizeof(root)) ||
+        snprintf(pattern, sizeof(pattern), "%s\\*", root) >= (int)sizeof(pattern)) {
+        return false;
+    }
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    bool found = false;
+    do {
+        found = strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0;
+    } while (!found && FindNextFileA(h, &fd));
+    FindClose(h);
+    return found;
+}
+
 static void update_buttons(void)
 {
     const struct row *r = selected_row();
@@ -223,6 +247,18 @@ static void update_buttons(void)
     bool any_running = g.n_running > 0;
     EnableWindow(g.stop, selected_item(g.running) >= 0);
     EnableWindow(g.stop_all, any_running);
+    EnableWindow(g.del, have_spawned_games());
+}
+
+/*
+ * Make Start game or Search the highlighted default button: Start game once
+ * there are results to start, Search while typing a new search.
+ */
+static void set_default_button(bool start)
+{
+    g.start_is_default = start;
+    SendMessageW(g.spawn, BM_SETSTYLE, start ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON, TRUE);
+    SendMessageW(g.search_button, BM_SETSTYLE, start ? BS_PUSHBUTTON : BS_DEFPUSHBUTTON, TRUE);
 }
 
 static void show_results(struct row *rows, size_t n)
@@ -231,6 +267,7 @@ static void show_results(struct row *rows, size_t n)
     g.rows = rows;
     g.n_rows = n;
 
+    set_default_button(false);
     SendMessageW(g.results, WM_SETREDRAW, FALSE, 0);
     SendMessageW(g.results, LVM_DELETEALLITEMS, 0, 0);
     for (size_t i = 0; i < n; i++) {
@@ -260,6 +297,8 @@ static void show_results(struct row *rows, size_t n)
                 ListView_SetItemState(g.results, (int)i, LVIS_SELECTED | LVIS_FOCUSED,
                                       LVIS_SELECTED | LVIS_FOCUSED);
                 ListView_EnsureVisible(g.results, (int)i, FALSE);
+                set_default_button(true);
+                SetFocus(g.results);  /* Enter now starts the game */
                 break;
             }
         }
@@ -367,7 +406,7 @@ static void search_done(struct search_job *job)
                      GUI_MAX_RESULTS, (unsigned long)job->total);
         } else {
             swprintf(text, sizeof(text) / sizeof(text[0]),
-                     L"Found %lu game(s). Pick an exe and press Spawn.",
+                     L"Found %lu game(s). Pick an exe and click Start game.",
                      (unsigned long)job->total);
         }
         set_status(text);
@@ -614,8 +653,9 @@ static void layout(int width, int height)
     int timer_label_w = px(150);
     MoveWindow(g.labels[1], m, y + px(4), timer_label_w, label_h, TRUE);
     MoveWindow(g.timer, m + timer_label_w, y, px(140), px(200), TRUE);
-    MoveWindow(g.spawn, m + inner - btn_w, y, btn_w, ctl_h, TRUE);
-    MoveWindow(g.recent, m + inner - 2 * btn_w - gap, y, btn_w, ctl_h, TRUE);
+    int start_w = px(140);
+    MoveWindow(g.recent, m + inner - btn_w, y, btn_w, ctl_h, TRUE);
+    MoveWindow(g.spawn, m + inner - btn_w - gap - start_w, y, start_w, ctl_h, TRUE);
     y += ctl_h + gap;
 
     MoveWindow(g.labels[2], m, y, inner, label_h, TRUE);
@@ -649,6 +689,8 @@ static void create_controls(void)
     ncm.cbSize = sizeof(ncm);
     SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
     g.font = CreateFontIndirectW(&ncm.lfMessageFont);
+    ncm.lfMessageFont.lfWeight = FW_BOLD;
+    g.bold_font = CreateFontIndirectW(&ncm.lfMessageFont);
 
     g.labels[0] = add_control(L"STATIC", L"Search for the game your quest is about:", 0,
                               IDC_SEARCH_LABEL);
@@ -676,8 +718,9 @@ static void create_controls(void)
         SendMessageW(g.timer, CB_ADDSTRING, 0, (LPARAM)TIMERS[i].label);
     }
     SendMessageW(g.timer, CB_SETCURSEL, 0, 0);
+    g.spawn = add_control(L"BUTTON", L"Start game", WS_TABSTOP, IDC_SPAWN);
+    SendMessageW(g.spawn, WM_SETFONT, (WPARAM)g.bold_font, FALSE);
     g.recent = add_control(L"BUTTON", L"Recent...", WS_TABSTOP, IDC_RECENT);
-    g.spawn = add_control(L"BUTTON", L"Spawn", WS_TABSTOP, IDC_SPAWN);
 
     g.labels[2] = add_control(L"STATIC", L"Running games:", 0, IDC_RUNNING_LABEL);
     g.running = add_control(WC_LISTVIEWW, L"", list_style, IDC_RUNNING);
@@ -724,8 +767,8 @@ static LRESULT on_notify(NMHDR *nm)
 static void on_command(int id)
 {
     switch (id) {
-    case IDOK:  /* Enter: search from the box, spawn from the results */
-        if (GetFocus() == g.results) {
+    case IDOK:  /* Enter: search from the box, otherwise the default button */
+        if (GetFocus() != g.search_edit && g.start_is_default) {
             spawn_selected();
         } else {
             start_search();
@@ -771,6 +814,9 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
     }
     case WM_COMMAND:
+        if (LOWORD(wp) == IDC_SEARCH_EDIT && HIWORD(wp) == EN_SETFOCUS) {
+            set_default_button(false);  /* typing a new search: Enter searches */
+        }
         on_command(LOWORD(wp));
         return 0;
     case WM_NOTIFY:
@@ -864,5 +910,6 @@ int gui_main(void)
 
     msg_set_handler(NULL);
     DeleteObject(g.font);
+    DeleteObject(g.bold_font);
     return 0;
 }
