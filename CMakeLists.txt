@@ -24,6 +24,10 @@ add_executable(Discord_quest
         src/fs.c
         res/app.rc)
 
+# app.rc embeds app.manifest; rebuild it when only the manifest changes.
+set_source_files_properties(res/app.rc PROPERTIES
+        OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/res/app.manifest)
+
 target_link_libraries(Discord_quest PRIVATE cjson winhttp user32 gdi32 comctl32 shell32)
 target_compile_definitions(Discord_quest PRIVATE WIN32_LEAN_AND_MEAN)
 
