@@ -8,7 +8,7 @@
 
 /* This build's version; compared with the latest GitHub release tag (vX.Y.Z). */
 #ifndef APP_VERSION
-#define APP_VERSION "1.2.0"
+#define APP_VERSION "1.3.0"
 #endif
 
 /* Where the update check looks for the latest release. */
