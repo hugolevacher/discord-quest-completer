@@ -121,28 +121,54 @@ static int run_once(int argc, char **argv)
     return 0;
 }
 
+/* True if standard input is a pipe or file (e.g. an IDE's run window, a script). */
+static bool input_redirected(void)
+{
+    DWORD type = GetFileType(GetStdHandle(STD_INPUT_HANDLE));
+    return type == FILE_TYPE_PIPE || type == FILE_TYPE_DISK;
+}
+
 /*
- * True when the exe was double-clicked rather than run from a terminal: Windows
- * then gives it a console of its own (no other process attached to it), and
- * its input is that console rather than a pipe (e.g. an IDE's run window).
+ * True when the exe was double-clicked rather than run from a terminal.
+ * On Windows 11 24H2+ the manifest's "detached" console policy means a
+ * double-clicked exe gets no console at all. Older Windows give it a console
+ * of its own, with no other process attached to it.
  */
 static bool started_by_double_click(void)
 {
+    if (input_redirected()) {
+        return false;
+    }
+    if (!GetConsoleWindow()) {
+        return true;
+    }
     DWORD pids[2];
-    DWORD mode;
-    return GetConsoleProcessList(pids, 2) == 1 &&
-           GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode);
+    return GetConsoleProcessList(pids, 2) == 1;
 }
 
-/* Drop the console Windows opened for us, so only the window shows. */
+/* Drop the console (if Windows opened one for us), so only the window shows. */
 static int run_gui(void)
 {
     HWND console = GetConsoleWindow();
     if (console) {
         ShowWindow(console, SW_HIDE);
+        FreeConsole();
     }
-    FreeConsole();
     return gui_main();
+}
+
+/*
+ * The prompt needs a console. Started without one (e.g. a shortcut to
+ * "spawner.exe --cli" on Windows 11 24H2+), open one and connect stdio to it.
+ */
+static void ensure_console(void)
+{
+    if (GetConsoleWindow() || input_redirected() || !AllocConsole()) {
+        return;
+    }
+    freopen("CONIN$", "r", stdin);
+    freopen("CONOUT$", "w", stdout);
+    freopen("CONOUT$", "w", stderr);
 }
 
 int main(int argc, char **argv)
@@ -160,6 +186,7 @@ int main(int argc, char **argv)
         (argc == 1 && started_by_double_click())) {
         return run_gui();
     }
+    ensure_console();
 
     /* Game names in Discord's list are UTF-8 (e.g. "Pokémon"). */
     SetConsoleOutputCP(CP_UTF8);
